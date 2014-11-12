@@ -12,17 +12,24 @@ from __future__ import division
 from lib import *
 import os
 import glob
+import math
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import fnmatch
+import os
 
 #===============================================================================
-# Clean Data
+# Bulk Clean Data
 #===============================================================================
 #====== User Input 
-InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema14274/Extrema14274'
-OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema14274/Clean/'
+InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema14303/Extrema14303/'
+OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema14303/Clean/'
 
 #====== Find all the clima and Hydro
 Files=glob.glob(InPath+"/*/*")
+print(Files)
 if not os.path.exists(OutPath):
 	os.makedirs(OutPath)
 
@@ -32,13 +39,12 @@ for i in Files:
 	data.write_clean(OutPath,os.path.basename(i))
 
 #===============================================================================
-#  Merge Clean Data
+#  Merge and Filter - Bulk cleanED data
 #===============================================================================
 InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
 OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
 
-import fnmatch
-import os
+
 
 if not os.path.exists(OutPath):
 	os.makedirs(OutPath)
@@ -59,53 +65,9 @@ for s in stations:
 			datamerge.append_dataframe(data)
 		except:
 			datamerge=data
+	datamerge.clean_dataframe()
 	datamerge.write_dataframe(OutPath,s+'clear_merge.TXT')
 
-data1=ManageDataLCB(os.path.dirname(matches[1])+"/",os.path.basename(matches[1]))
-data1=data1.Dataframe
-data2=ManageDataLCB(os.path.dirname(matches[2])+"/",os.path.basename(matches[2]))
-data2=data2.Dataframe
-
-data1['index']=data1.index
-data2['index']=data2.index
-
-# data3=pd.merge(data1,data2,how='outer')
-# data3=data1.join(data2)
-#            self.Dataframe=self.Dataframe.append(fileobject.Dataframe).sort_index(axis=0)
-			#			 self.Dataframe=pd.merge(self.Dataframe,fileobject.Dataframe,left_index=True, right_index=True,how='outer')
-
-data3=data1.append(data2).sort_index(axis=0)
-data1.index
-data2.index
-data3.index
-
-	def append_dataframe(self,fileobject):
-		"""
-		User input: A list of file path with the different files to merge
-		Description	
-			exemple: H05XXX240 will be merged with H05XXX245
-		"""
-		try:
-			self.Dataframe=pd.concat([self.Dataframe,fileobject.Dataframe],axis=0)
-			print("Merging dataframe "+fileobject.fname)
-		except:
-			print('It cant merge dataframe')
-	def write_dataframe(self,OutPath,fname):
-		self.Dataframe.to_csv(OutPath+fname)
-		print('Writing dataframe')
-		
-
-# Test
-IP="/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C08clear_merge.TXTclear"
-mm=LCB_station(IP)
-mm.Data['index']=mm.Data.index
-newindexed=mm.Data.drop_duplicates(cols='index', take_last=True)
-Final=newindexed.reindex(index=sorted(newindexed.index))
-mm.Data=Final
-mm.Data['Ta C'].plot()
-plt.savefig('chatte.png')
-
-mm.Data.to_csv('testc06.csv')
 
 #===============================================================================
 # Polar Plot
@@ -124,18 +86,19 @@ for i in Files:
 #===============================================================================
 # Time serie vector plot
 #===============================================================================
+InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+out='/home/thomas/'
+
 # Find all the clima and Hydro
-Files=glob.glob(InPath+"/*48.TXTclear")
+Files=glob.glob(InPath+"*")
 net=LCB_net()
 
-# add the stations 13
-Files.append('/home/thomas/PhD/obs-lcb/LCBData/obs/Extrema14260/Clean/C/CleanC1314247.TXTclear')
+Files.remove('/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C15clear_merge.TXT')
+Files.remove('/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C04clear_merge.TXT')
 # create the net
 network=[]
 for i in Files:
 	rr=LCB_station(i)
-	if rr.InPath =='/home/thomas/PhD/obs-lcb/LCBData/obs/Extrema14260/Clean/C/CleanC1314247.TXTclear':
-		rr.Data.index=rr.Data.index+ pd.DateOffset(days=1)+ pd.DateOffset(hours=1)
 	rr.Set_From('2014-09-8 00:00:00')
 	rr.Set_To('2014-09-9 00:00:00')
 	rr.Data.index
@@ -146,17 +109,42 @@ for rr in network:
 	rr.Set_By('H')
 	rr.Set_From('2014-09-8 00:00:00')
 	rr.Set_To('2014-09-9 00:00:00')
-	oo=Vector([rr.DailyDiffnet()['Ua g/kg'],rr.DailyDiffnet()['Ta C']],rr.daily_h()['Dm G'],rr.daily_h()['Sm m/s'])
+	oo=Vector([rr.DailyDiffnet()['Ua %'],rr.DailyDiffnet()['Ta C']],rr.daily_h()['Dm G'],rr.daily_h()['Sm m/s'])
 	#oo.SetType('AnomalieH')
 	#oo.SetType('type1')
+	oo.SetType('AnomalieH')
 	oo.SetTypeTwin('AnomalieT')
 	oo.SetOption('twin',True)
-	oo.SetType('AnomalieH')
 	oo.plot()
 	print(i+ '  '+rr.From+' '+rr.To)
 	plt.savefig(out+rr.get_InPath()[-18:]+'.png', transparent=True,bbox_inches='tight')
+	plt.close()
 
+for rr in network:
+	rr.Set_By('H')
+	rr.Set_From('2014-09-1 00:00:00')
+	rr.Set_To('2014-09-10 00:00:00')
+	rr.Data['Pa H'].plot()
+	plt.savefig(rr.get_InPath()[-18:-4]+'.png')
+	plt.close()
+	print(rr.Data.columns)
+	print(rr.get_InPath())
+	print(rr.Data['Ua %'])
 
+#===============================================================================
+# Simple plot of the overall Serie
+#===============================================================================
+InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+out='/home/thomas/'
 
+# Find all the clima and Hydro
+Files=glob.glob(InPath+"*")
+net=LCB_net()
 
-
+for i in Files:
+	rr=LCB_station(i)
+	rr.Data['Ta C'].plot()
+	plt.savefig(rr.get_InPath()[-18:]+'.png')
+	plt.close()
+	
+	
