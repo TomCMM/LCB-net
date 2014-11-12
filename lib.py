@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 class ManageDataLCB(object):
     """Read data LCB observations, clean the possible error and write a new file"""
@@ -14,20 +15,30 @@ class ManageDataLCB(object):
         self.__read()
         self.Header()
         self.clear()
+        self.Threshold={'Pa H':{'Min':850,'Max':920},
+                        'Ta C':{'Min':5,'Max':50,'MavgA':6,'MavgB':6,'MavgC':11},
+                        'Ua %':{'Min':0,'Max':100},
+                        'Rc mm':{'Min':0,'Max':10000},
+                        'Sm m/s':{'Min':0,'Max':100},
+                        'Dm G':{'Min':0,'Max':360},
+                        'Bat mV':{'Min':0,'Max':10000},
+                        'Vs V':{'Min':8.99,'Max':9.5}
+                        }
     def Header(self):
 #        headers = {
 #            'C': 'T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n',
-#            'H': 'T_S t,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n'
-#        }
-#        try    
-#            self.Header_var = header[self.fname[0]]
-#        except KeyError:
-#            print ...
-#            self.Header_var = None
-#
-        if self.fname[0] =='C':
+#           'c': 'T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n',
+#            'H': 'T_S t,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n',
+#           'h': 'T_S t,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n',
+#          }       
+#     try:   
+#         self.Header_var = headers[self.fname[0]]
+#     except KeyError:
+#        print('Their is not such Header') 
+#       self.Header_var = None
+        if self.fname[0] =='C' or self.fname[0] =='c':
             self.Header_var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n'
-        if self.fname[0] == 'H':
+        if self.fname[0] == 'H' or self.fname[0] == 'h' :
             self.Header_var='T_St,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n'
     def nbcol(self):
         nbcol=len(self.Header_var.split(','))
@@ -36,6 +47,8 @@ class ManageDataLCB(object):
         with open(self.InPath+self.fname) as f:
             content = f.readlines()
         self.content=content
+        print("======================================================================================")
+        print('OPEN THE FILE: '+self.fname)
         try:
             self.Dataframe=pd.read_csv(self.InPath+self.fname, sep=',',header=True,index_col=0,parse_dates=True)
             print('The file is Clean - A dataframe has been created')
@@ -48,7 +61,7 @@ class ManageDataLCB(object):
             print("-> Rewrite title info")
             content_clear.insert(0,self.Header_info)
             print('New title',content_clear[0])
-        if content_clear[1][0:4] != self.Header_var[0:4]:
+        if content_clear[1][0:4] != self.Header_var[0:4] or self.nbcol() > len(content_clear[1].split(',')):
             print("-> Rewrite Variables columns")
             content_clear.insert(1,self.Header_var)
         for idx,line in enumerate(content_clear[self.NbLineHeader::]):
@@ -67,7 +80,7 @@ class ManageDataLCB(object):
     def append_dataframe(self,fileobject):
         """
         User input: A list of file path with the different files to merge
-        Description    
+pd.rolling_mean(rr.Data['Ta C'],3)        Description    
             exemple: H05XXX240 will be merged with H05XXX245
         """
         try:
@@ -77,9 +90,37 @@ class ManageDataLCB(object):
             print('It cant merge dataframe')
     def write_dataframe(self,OutPath,fname):
         self.Dataframe.to_csv(OutPath+fname)
+        print('--------------------')
         print('Writing dataframe')
-        
-
+        print('--------------------')
+    def clean_dataframe(self):
+        print('000000000000000000000000000000000000000000000000000000000000')
+        for var in self.Dataframe.columns:
+            try:
+                if var != 'Vs V':
+                    print('Filtering ->  ', var)
+                    self.Dataframe=self.Dataframe[(self.Dataframe[var]>=self.Threshold[var]['Min']) & (self.Dataframe[var]<=self.Threshold[var]['Max']) ]# Threshold
+                else:
+                    print('Filtering battery')
+                    self.Dataframe=self.Dataframe[((self.Dataframe['Vs V']>=self.Threshold['Vs V']['Min']) & (self.Dataframe['Vs V']<=self.Threshold['Vs V']['Max'])) | (self.Dataframe['Vs V'].isnull()) ]# Threshold
+            except KeyError:
+                print('no Threshold for '+var)
+            try:
+                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],30)-self.Dataframe[var])<self.Threshold[var]['MavgB'])]# inter-daily
+                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],5)-self.Dataframe[var])<self.Threshold[var]['MavgA'])]# inter-daily
+                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],180)-self.Dataframe[var])<self.Threshold[var]['MavgC'])]# inter-daily
+                print('The running mean filter on',[var],' as removed  |---> [',
+                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],30)-self.Dataframe[var])>self.Threshold[var]['MavgB'])]),
+                      ' and ',
+                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],5)-self.Dataframe[var])>self.Threshold[var]['MavgA'])]),
+                      'and',
+                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],180)-self.Dataframe[var])>self.Threshold[var]['MavgC'])])
+                      ,'] data')
+            except KeyError:
+                print('no Mavg threshold for this variable:->  ',var)
+        print('000000000000000000000000000000000000000000000000000000000000')
+                
+                
 class LCB_net(object):
     def __init__(self):
         self.guys = []
@@ -134,8 +175,8 @@ class LCB_station(object):
     """
     def __init__(self,InPath):
         self.InPath=InPath
-        self.rawData=pd.read_csv(InPath, sep=',',header=True,index_col=0,parse_dates=True)
-        self.Data=pd.read_csv(InPath, sep=',',header=True,index_col=0,parse_dates=True)
+        self.rawData=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)#on raw file the option "Header=True is needed"
+        self.Data=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)
         #self.daily()        
         self.From=self.Data.index[0]
         self.To=self.Data.index[-1]
@@ -237,11 +278,11 @@ class LCB_station(object):
         """
         Compute the specfic humidity from the relative humidity, Pressure and Temperature
         """
-        q=((self.Data['Ua %']/100)*self.Ws())/(1-(self.Data['Ua %']/100)*self.Ws())*1000
-        self.Data['Ua g/kg']=q
-
-class PlotLCB(object):
-    pass
+        try:
+            q=((self.Data['Ua %']/100)*self.Ws())/(1-(self.Data['Ua %']/100)*self.Ws())*1000
+            self.Data['Ua g/kg']=q
+        except KeyError:
+            print('Cant compute the specific humidity')           
 
 class Vector(object):
     def __init__(self,data,Theta,Norm):
@@ -330,7 +371,6 @@ class Vector(object):
     def SetTypeTwin(self,Type):
         self.argTwin=self.Types[Type]
     def report(self):
-        print('Default Types available: '+str(oo.Types.keys()))
         print('current option choosen: '+str(self.type))
         print('The parameters of this option are: '+str(self.arg))
         print('To change the Type please use .SetType(''''option'''')')
@@ -388,7 +428,7 @@ class Vector(object):
         plt.draw()
 
 
-    def PolarPlot(self):
+def PolarPlot(self):
         """
         Plot a polar plot with rectangle representing the different characteristics of the wind and a climatic variable
         """
