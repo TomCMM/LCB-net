@@ -1,9 +1,11 @@
 import math
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+#===============================================================================
+# Clean - Merge -LCB Data
+#===============================================================================
 class ManageDataLCB(object):
     """Read data LCB observations, clean the possible error and write a new file"""
     Header_info='Modulo XBee Unknown  Adress SL: Unknown\r\n'
@@ -119,63 +121,90 @@ pd.rolling_mean(rr.Data['Ta C'],3)        Description
             except KeyError:
                 print('no Mavg threshold for this variable:->  ',var)
         print('000000000000000000000000000000000000000000000000000000000000')
-                
-                
-class LCB_net(object):
+
+#==========================================================
+# NETWORK
+#==========================================================
+class LCB_net(main_net,com_net,Para,man):
     def __init__(self):
         self.guys = []
         self.min = None
         self.max = None
-        self.mean=None
-    def Max(self):
-        return self.max
-    def Min(self):
-        return self.min
-    def Mean(self):
-        return self.mean
+        self.Data=None # Which is actually the mean 
+        self.sta_names=[]
+        self.From=None
+        self.To=None
+        self.By='H'
+
+class com_net(object): 
+    def report(self):
+        print "Their is %d stations in the network" % len(self.guys)
+        for i,v in enumerate(self.guys):
+            v
+            self.sta_names[i]
     def remove(self, item):
-        item.deregister(self)
+        item._com_sta__deregister(self)# _Com_sta - why  ? ask Marcelo
         self.guys.remove(item)
         self.min = None
         self.max = None
-        self.mean = None
+        self.Data = None
         for guy in self.guys:
             self.__update__(guy)
     def add(self, item):
+        print('========================================================================================')
         print('Adding To the network -> '+item.get_InPath())
+        self.sta_names.append(item.get_InPath)
         self.guys.append(item)
-        self.__update__(item)
-        item.register(self)
-    def __update__(self, item):
-        for i in item.daily().columns:
-                try:
-                    self.max[i]= pd.DataFrame({ 'net' : self.max[i], 'NewSta' : item.daily()[i] }).max(1)
-                    self.min[i]= pd.DataFrame({ 'net' : self.min[i], 'NewSta' : item.daily()[i] }).min(1)
-                    self.mean[i]= (self.mean[i]*(len(self.guys)-1)+item.daily()[i])/len(self.guys)
-                except KeyError:
-                    print('Adding a new column: '+i)
-                    print(item.daily()[i])
-                    self.max[i]=item.daily()[i]
-                    self.min[i]=item.daily()[i]
-                    self.mean[i]=item.daily()[i]
-                except TypeError:
-                    print('Initiating data network')
-                    self.max=item.daily()
-                    self.min=item.daily()
-                    self.mean=item.daily()
-    def report(self):
-        print "Their is %d stations in the network" % len(self.guys)
-        for guy in self.guys:
-            print guy
-        print ""
+        self.__update(item)
+        item._com_sta__register(self)# _com_sta why ? ask Marcelo
+    def __update(self, item):
+        try:
+            print('Updating network')
+            self.max=pd.concat((self.max,item.Data))
+            self.max=self.max.groupby(self.max.index).max()
+            #------------------------------------------------------------------------------ 
+            self.min=pd.concat((self.min,item.Data))
+            self.min=self.min.groupby(self.min.index).min()
+            #------------------------------------------------------------------------------ 
+            self.Data=pd.concat((self.Data,item.Data))
+            self.Data=self.Data.groupby(self.Data.index).mean()
+            self.From=self.Data.index[0]
+            self.To=self.Data.index[-1]                     
+        except TypeError:
+            print('Initiating data network')
+            self.Data=item.Data
+            self.min=item.Data
+            self.max=item.Data
+#         for i in item.daily().columns:
+#                 try:
+#                     self.max[i]= pd.DataFrame({ 'net' : self.max[i], 'NewSta' : item.daily()[i] }).max(1)
+#                     self.min[i]= pd.DataFrame({ 'net' : self.min[i], 'NewSta' : item.daily()[i] }).min(1)
+#                     self.mean[i]= (self.mean[i]*(len(self.guys)-1)+item.daily()[i])/len(self.guys)
+#                 except KeyError:
+#                     print('Adding a new column: '+i)
+#                     print(item.daily()[i])
+#                     self.max[i]=item.daily()[i]
+#                     self.min[i]=item.daily()[i]
+#                     self.mean[i]=item.daily()[i]
+#                 except TypeError:
+#                     print('Initiating data network')
+#                     self.max=item.daily()
+#                     self.min=item.daily()
+#                     self.mean=item.daily()
+                    
+class main_net(object):
+    pass
 
-class LCB_station(object):
+#===============================================================================
+# STATION
+#===============================================================================
+class LCB_station(com_sta,man_sta,main_sta,Para,man):
     """
     Contain the data of ONE WXT! and the different module to transform the data in some specific way.
     """
     def __init__(self,InPath):
         self.InPath=InPath
-        self.rawData=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)#on raw file the option "Header=True is needed"
+        #self.rawData=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)#on raw file the option "Header=True is needed"
         self.Data=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)
         #self.daily()        
         self.From=self.Data.index[0]
@@ -183,11 +212,11 @@ class LCB_station(object):
         self.By='H'
         self.q()
         self.my_net=None
-    def get_InPath(self):
-        return self.InPath
-    def deregister(self, net):
+
+class com_sta(object):
+    def __deregister(self, net):
         self.my_net = None
-    def register(self, net):
+    def __register(self, net):
         self.my_net = net
         print(self.my_net)
     def report(self):
@@ -196,32 +225,11 @@ class LCB_station(object):
             print "My net: ",self.my_net
         else:
             print "i dont belong to any net"
-        print ""
-    def Set_From(self,From):
-        """
-        Permit to set the start of the time serie use in the module FromToBy()
-        Take 1 argument on the following form "2014-09-03 22:30:00"
-        """
-        self.From=From
-    def Set_To(self,To):
-        """
-        Permit to set the end of the time serie use in the module FromToBy()
-        Take 1 argument on the following form "2014-09-03 22:30:00"
-        """
-        self.To=To
-    def Set_By(self,By):
-        """
-        Permit to set the time range of the time serie use in the module FromToBy()
-        Take 1 argument on the following form "3H"
-        """
-        self.By=By    
-    def daily(self):
-        data=self.Data[self.From:self.To].groupby(lambda t: (t.hour,t.minute)).mean()
-        return data
-    def daily_h(self):
-        data=self.Data[self.From:self.To].groupby(lambda t: t.hour).mean()
-        return data
+        print ""      
+
+class man_sta(object):
     def DailyDiffnet(self):
+  
         """
         return a dataframe which contain the difference between the station and the network
         """
@@ -230,31 +238,10 @@ class LCB_station(object):
         except NameError:
             self.report()
         return Ndata
-    def daily_3h(self):
-        DD=self.Data['2014-09-03 22:30:00':'2014-09-05 00:00:00']
-        DD_0h=DD.between_time('22:30','01:30')
-        DD_3h=DD.between_time('01:30','04:30')
-        DD_6h=DD.between_time('04:30','07:30')
-        DD_9h=DD.between_time('07:30','10:30')
-        DD_13h=DD.between_time('10:30','13:30')
-        DD_15h=DD.between_time('13:30','16:30')
-        DD_18h=DD.between_time('16:30','19:30')
-        DD_21h=DD.between_time('19:30','22:30')    
-        DD_std=[DD_6h['Dm G'].describe()[2],DD_9h['Dm G'].describe()[2],DD_13h['Dm G'].describe()[2],DD_15h['Dm G'].describe()[2],DD_18h['Dm G'].describe()[2]]
-        DD_mean=[DD_6h['Sm m/s'].describe()[1],DD_9h['Sm m/s'].describe()[1],DD_13h['Sm m/s'].describe()[1],DD_15h['Sm m/s'].describe()[1],DD_18h['Sm m/s'].describe()[1]]
-        DD_T=[DD_6h['Ta C'].describe()[1],DD_9h['Ta C'].describe()[1],DD_13h['Ta C'].describe()[1],DD_15h['Ta C'].describe()[1],DD_18h['Ta C'].describe()[1]]
-        self.Data_3H=DD.resample('3H',how='mean')
-        self.Data_3H_min=DD.resample('3H',how='min')
-        self.Data_3H_max=DD.resample('3H',how='max')
-        N =len(self.Data_3H)
-        self.theta=map(math.radians,np.array(DD_mean)-np.array(DD_std))
-        self.radii=DD_mean
-        self.width=map(math.radians,np.array(DD_std)*2)
-        self.color=(np.array(DD_T)-10)/(20-10)
-    def FromToBy(self):
-        data=self.rawData[self.From:self.To]
-        data=data.resample(self.By,how='mean')
-        return data
+
+class main_sta(object):
+    def get_InPath(self):
+        return self.InPath
     def Es(self):
         """
         Return the vapor pressure at saturation from the Temperature
@@ -282,10 +269,74 @@ class LCB_station(object):
             q=((self.Data['Ua %']/100)*self.Ws())/(1-(self.Data['Ua %']/100)*self.Ws())*1000
             self.Data['Ua g/kg']=q
         except KeyError:
-            print('Cant compute the specific humidity')           
+            print('Cant compute the specific humidity')  
+
+#===============================================================================
+# Analysis - Parameters 
+#===============================================================================
+class Para(object):
+    
+    def Set_From(self,From):
+        """
+        Permit to set the start of the time serie use in the module FromToBy()
+        Take 1 argument on the following form "2014-09-03 22:30:00"
+        """
+        self.From=From
+    def Set_To(self,To):
+        """
+        Permit to set the end of the time serie use in the module FromToBy()
+        Take 1 argument on the following form "2014-09-03 22:30:00"
+        """
+        self.To=To
+    def Set_By(self,By):
+        """
+        Permit to set the time range of the time serie use in the module FromToBy()
+        Take 1 argument on the following form "3H"
+        """
+        self.By=By    
+
+class man(object):
+    def daily_3h(self):
+        DD=self.Data['2014-09-03 22:30:00':'2014-09-05 00:00:00']
+        DD_0h=DD.between_time('22:30','01:30')
+        DD_3h=DD.between_time('01:30','04:30')
+        DD_6h=DD.between_time('04:30','07:30')
+        DD_9h=DD.between_time('07:30','10:30')
+        DD_13h=DD.between_time('10:30','13:30')
+        DD_15h=DD.between_time('13:30','16:30')
+        DD_18h=DD.between_time('16:30','19:30')
+        DD_21h=DD.between_time('19:30','22:30')    
+        DD_std=[DD_6h['Dm G'].describe()[2],DD_9h['Dm G'].describe()[2],DD_13h['Dm G'].describe()[2],DD_15h['Dm G'].describe()[2],DD_18h['Dm G'].describe()[2]]
+        DD_mean=[DD_6h['Sm m/s'].describe()[1],DD_9h['Sm m/s'].describe()[1],DD_13h['Sm m/s'].describe()[1],DD_15h['Sm m/s'].describe()[1],DD_18h['Sm m/s'].describe()[1]]
+        DD_T=[DD_6h['Ta C'].describe()[1],DD_9h['Ta C'].describe()[1],DD_13h['Ta C'].describe()[1],DD_15h['Ta C'].describe()[1],DD_18h['Ta C'].describe()[1]]
+        self.Data_3H=DD.resample('3H',how='mean')
+        self.Data_3H_min=DD.resample('3H',how='min')
+        self.Data_3H_max=DD.resample('3H',how='max')
+        N =len(self.Data_3H)
+        self.theta=map(math.radians,np.array(DD_mean)-np.array(DD_std))
+        self.radii=DD_mean
+        self.width=map(math.radians,np.array(DD_std)*2)
+        self.color=(np.array(DD_T)-10)/(20-10)
+    def FromToBy(self,How):
+        data=self.Data[self.From:self.To]
+        data=data.resample(self.By,how=How)
+        return data
+    def daily(self):
+        data=self.Data[self.From:self.To].groupby(lambda t: (t.hour,t.minute)).mean()
+        return data
+    def daily_h(self):
+        data=self.Data[self.From:self.To].groupby(lambda t: t.hour).mean()
+        return data
+
+#===============================================================================
+# Plot
+#===============================================================================
+class LCB_plot(Vector):
+    pass
 
 class Vector(object):
     def __init__(self,data,Theta,Norm):
+        print('Plotting Vector')
         self.data=data
         self.Theta=Theta
         self.Norm=Norm
@@ -308,7 +359,7 @@ class Vector(object):
             'linewidth':4,
             'y_lim':[-4,4]},
         'AnomalieT': {
-            'Poswind':-3.5,
+            'Poswind':-3.7,
             'colorvar':['k','b'],
             'colorfig':'b',
             'colorwind':'k',
@@ -316,19 +367,19 @@ class Vector(object):
             'Poswindscale':[5,3],
             'ScaleLength':5,
             'fontsize':40,
-            'y_lim':[-6,6],
+            'y_lim':[-4,4],
             'linewidth':4},
         'AnomalieH':{
-            'Poswind':-1.5,
+            'Poswind':-1.3,
             'colorvar':['k','b'],
             'colorfig':'k',
             'colorwind':'k',
             'vectorlength':30,
-            'Poswindscale':[5,1.25],
+            'Poswindscale':[5,1.2],
             'ScaleLength':2,
             'fontsize':40,
             'linewidth':4,
-            'y_lim':[-2,2]},
+            'y_lim':[-1.5,1.5]},
         'AbsolueT':{
             'Poswind':14,
             'colorvar':['k','b'],
@@ -339,18 +390,18 @@ class Vector(object):
             'ScaleLength':5,
             'fontsize':40,
             'linewidth':4,
-            'y_lim':[5,30]},
+            'y_lim':[10,30]},
         'AbsolueH':{
-            'Poswind':7,
+            'Poswind':7.5,
             'colorvar':['k','b'],
             'colorfig':'k',
             'colorwind':'k',
             'vectorlength':40,
-            'Poswindscale':[5,11],
+            'Poswindscale':[5,10],
             'ScaleLength':5,
             'fontsize':40,
             'linewidth':4,
-            'y_lim':[6.5,12]},
+            'y_lim':[7,11]},
             }
     def __Extras(self):
         if self.type=='AnomalieH' or self.type=='AnomalieT':
@@ -427,8 +478,7 @@ class Vector(object):
         ax.set_xticks(np.arange(0,25,4))
         plt.draw()
 
-
-def PolarPlot(self):
+class PolarPlot(object):
         """
         Plot a polar plot with rectangle representing the different characteristics of the wind and a climatic variable
         """
