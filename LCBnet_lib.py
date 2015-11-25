@@ -15,10 +15,9 @@ from scipy import interpolate
 import seaborn as sns
 from scipy import stats
 import datetime
+from geopy.distance import vincenty
 
-#===============================================================================
-# Clean - Merge -LCB Data
-#===============================================================================
+
 def PolarToCartesian(norm,theta):
     """
     Transform polar to Cartesian where 0 = North, East =90 ....
@@ -27,172 +26,92 @@ def PolarToCartesian(norm,theta):
     V=norm*np.sin(map(math.radians,-theta+270))
     return U,V
 
+
+class Ink():
+    """
+    DESCRIPTION
+        function to display a string in the monitor with specified format
+    INPUT
+        level: 0, MAIN TITLE should be use for class
+                1, Title, should be use for methods
+                2, sub title should be use for loops
+                'all', print all type of level
+    """
+    def __init__(self,*args):
+        nblevel = 4
+        string = args[0]
+
+        if len(args)>1:
+            level = args[1]
+        else:
+            level = nblevel
+
+        if len(args)>2:
+            kwargs = args[2]
+            
+        else:
+            kwargs = "donotexist"
+
+        if kwargs:
+            if 'v' in kwargs:
+                if level <= kwargs['v'] or kwargs['v']=='all':
+                    self._print(string, level)
+                else:
+                    pass
+        elif kwargs == "donotexist":
+            self._print(string, level)
+
+
+    def _print(self,string, level):
+        string = str(string)
+        if level == 0:
+            print "0"*120
+            print "0"*120
+            print " "*60 + string.upper()
+            print "0"*120
+            print "0"*120
+    
+        elif level == 1:
+            print "o"*60
+            print " "*20 + string.upper()
+            print "o"*60
+    
+        elif level == 2:
+            print "="*60
+            print " "*20 + string.upper()
+            print "="*60
+    
+        elif level == 3:
+            print "-"*60
+            print " "*20 + string
+            print "-"*60
+    
+        elif level == 4:
+            print "-"*60
+            print " "*30 + string
+            print "-"*60
+
+
+def merge_dicts(*dict_args):
+    '''
+    Given any number of dicts, shallow copy and merge into a new dict,
+    precedence goes to key value pairs in latter dicts.
+    '''
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
+
+
 def cart2pol(x, y):
     rho = np.sqrt(x**2 + y**2)
     phi = np.arctan2(y, x)
     return rho, phi
 
-class ManageDataLCB(object):
-    """Read data LCB observations, clean the possible error and write a new file"""
-    Header_info='Modulo XBee Unknown  Adress SL: Unknown\r\n'
-    NbLineHeader=2
-    def __init__(self,InPath,fname):
-        """Take The Path and the filname of the raw files folder """
-        self.InPath=InPath
-        self.fname=fname
-        self.__read(InPath,fname)
-        self.Header()
-        self.clear()
-        self.Threshold={'Pa H':{'Min':850,'Max':920},
-                        'Ta C':{'Min':0,'Max':50},#,'MavgA':6,'MavgB':6,'MavgC':11
-                        'Ua %':{'Min':0,'Max':100},
-                        'Rc mm':{'Min':0,'Max':10000},
-                        'Sm m/s':{'Min':0,'Max':100},
-                        'Dm G':{'Min':0,'Max':360},
-                        'Bat mV':{'Min':0,'Max':10000},
-                        'Vs V':{'Min':8.5,'Max':9.5}
-                        }
-    def Header(self,type=None):
-#        headers = {
-#            'C': 'T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n',
-#           'c': 'T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n',
-#            'H': 'T_S t,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n',
-#           'h': 'T_S t,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n',
-#          }
-#     try:   
-#         self.Header_var = headers[self.fname[0]]
-#     except KeyError:
-#        print('Their is not such Header') 
-#       self.Header_var = None
-
-        if type ==1:
-            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm,Vs V\r\n'
-            return var
-
-        if type ==2:
-            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Ua %,Pa H,Rc mm,Vs V\r\n'
-            return var
-
-        if self.fname[0] =='C' or self.fname[0] =='c':
-            self.Header_var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n'
-
-        if self.fname[0] == 'H' or self.fname[0] == 'h' :
-            self.Header_var='T_St,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n'
-
-    def nbcol(self):
-        nbcol=len(self.Header_var.split(','))
-        return nbcol
-
-    def __read(self, InPath, fname):
-        with open(InPath+fname) as f:
-            content = f.readlines()
-        self.content=content
-
-        print("======================================================================================")
-        print('OPEN THE FILE: '+self.fname)
-        try:
-            self.Dataframe=pd.read_csv(self.InPath+self.fname, sep=',',header=True,index_col=0,parse_dates=True)
-            print('The file is Clean - A dataframe has been created')
-        except:
-            print('The file is Dirty! - I cant create a dataframe - Clean before and import again')
-
-    def clear(self):
-        LineToDel=[]
-        content_clear=self.content
-
-        # Check if the file is empty
-        if not content_clear:
-            print("-> The File is empty")
-            content_clear.insert(0,self.Header_info)
-            content_clear.insert(1,self.Header(type=1))
-            print('New title',content_clear[0])
-        
-        if content_clear[0][0:11] != self.Header_info[0:11]:
-            print("-> Rewrite title info")
-            content_clear.insert(0,self.Header_info)
-            print('New title',content_clear[0])
-
-        if content_clear[1][0:4] != self.Header_var[0:4]:
-            print("-> No Header -> Rewrite Header columns")
-            content_clear.insert(1,self.Header_var)
-
-        for idx,line in enumerate(content_clear[self.NbLineHeader::]):
-            if len(line.split(',')) != self.nbcol() or line[0:1].isdigit() == False or line[-2:]!='\r\n' or len(line.split(',')[0])!=16:
-                print('-> Deleting the line ',idx+self.NbLineHeader," :",line)
-                LineToDel.append(self.NbLineHeader+idx)
-        for i in sorted(LineToDel, reverse=True):
-            del content_clear[i]
-        self.content_clear=content_clear
-        if len(self.content_clear) >2:
-            if  len(content_clear[1].split(',')) > len(content_clear[2].split(',')):
-                print("-> Less data columns than header _> Rewrite header")
-                del content_clear[1]
-                content_clear.insert(1,self.Header(type=2))
-            if len(content_clear[1].split(',')) < len(content_clear[2].split(',')):
-                print("-> More data columns than header -> Rewrite header")
-                del content_clear[1]
-                content_clear.insert(1,self.Header(type=1))
-
-    def write_clean(self,OutPath,fname):
-        self.clear()
-        fname = fname.upper()
-        f = open(OutPath+fname+'clear',"w")
-        for line in self.content_clear:
-            f.write(line)
-        f.close
-
-    def append_dataframe(self,fileobject):
-        """
-        User input: A list of file path with the different files to merge
-                Description    
-            exemple: H05XXX240 will be merged with H05XXX245
-        """
-        try:
-            self.Dataframe=self.Dataframe.append(fileobject.Dataframe).sort_index(axis=0)
-            print("Merging dataframe "+fileobject.fname)
-        except:
-            print('It cant merge dataframe')
-
-    def write_dataframe(self,OutPath, fname):
-        self.Dataframe.to_csv(OutPath+fname)
-        print('--------------------')
-        print('Writing dataframe')
-        print('--------------------')
-    def clean_dataframe(self):
-        print('000000000000000000000000000000000000000000000000000000000000')
-        for var in self.Dataframe.columns:
-            try:
-                if var != 'Vs V':
-                    print('Filtering ->  ', var)
-                    self.Dataframe=self.Dataframe[(self.Dataframe[var]>=self.Threshold[var]['Min']) & (self.Dataframe[var]<=self.Threshold[var]['Max']) ]# Threshold
-                else:
-                    print('Filtering battery')
-                    self.Dataframe=self.Dataframe[((self.Dataframe['Vs V']>=self.Threshold['Vs V']['Min']) & (self.Dataframe['Vs V']<=self.Threshold['Vs V']['Max'])) | (self.Dataframe['Vs V'].isnull()) ]# Threshold
-            except KeyError:
-                print('no Threshold for '+var)
-            try:
-                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],30)-self.Dataframe[var])<self.Threshold[var]['MavgB'])]# inter-daily
-                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],5)-self.Dataframe[var])<self.Threshold[var]['MavgA'])]# inter-daily
-                self.Dataframe=self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],180)-self.Dataframe[var])<self.Threshold[var]['MavgC'])]# inter-daily
-                print('The running mean filter on',[var],' as removed  |---> [',
-                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],30)-self.Dataframe[var])>self.Threshold[var]['MavgB'])]),
-                      ' and ',
-                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],5)-self.Dataframe[var])>self.Threshold[var]['MavgA'])]),
-                      'and',
-                      len(self.Dataframe[(np.abs(pd.rolling_mean(self.Dataframe[var],180)-self.Dataframe[var])>self.Threshold[var]['MavgC'])])
-                      ,'] data')
-            except KeyError:
-                print('no Mavg threshold for this variable:->  ',var)
-        # drop duplicates
-        self.Dataframe = self.Dataframe.drop_duplicates()
-        # remove null colomns (e.g. Unnamed)
-        self.Dataframe = self.Dataframe.dropna(axis = 1, how ='all')
-        print('000000000000000000000000000000000000000000000000000000000000')
-
-
 #===============================================================================
 # Analysis - Parameters 
 #===============================================================================
+
 
 class man(object):
     """
@@ -215,7 +134,6 @@ class man(object):
         
         return module[var]
 
-
     def __Es(self):
         """
         Return the vapor pressure at saturation from the Temperature
@@ -228,6 +146,7 @@ class man(object):
         es=0.6112*np.exp((17.67*self.getvar('Ta C'))/(self.getvar('Ta C')+243.5))*10 #hPa
         #self.__setvar('Es Kpa',es)
         return es
+
     def __Ws(self):
         """
         Return Mixing ratio at saturation calculated from
@@ -236,6 +155,7 @@ class man(object):
         ws=self.getpara('E')*(self.getvar('Es hpa')/(self.getvar('Pa H')-self.getvar('Es hpa')))
         #self.__setvar('Ws g/kg',ws)
         return ws
+
     def __Ev(self):
         """
         Vapor pressure 
@@ -246,6 +166,7 @@ class man(object):
 
         Ev = (w/(w+e))*p
         return Ev
+
     def __q(self):
         """
         Compute the specfic humidity from the relative humidity, Pressure and Temperature
@@ -253,6 +174,7 @@ class man(object):
         q=((self.getvar('Ua %')/100)*self.getvar('Ws g/kg'))/(1-(self.getvar('Ua %')/100)*self.getvar('Ws g/kg'))*1000
         #self.__setvar('Ua g/kg',q)
         return q
+
     def __Theta(self): 
         """
         Compute the Potential temperature
@@ -260,12 +182,14 @@ class man(object):
         theta=(self.getvar('Ta C'))*(self.getpara('P0')/self.getvar('Pa H'))**(self.getpara('Cp')/self.getpara('R'))
         #self.__setvar('Theta C',theta)
         return theta
+
     def __U(self):
         """
         Return the wind in the X direction (U) in m/s
         """
         U,V = PolarToCartesian(self.getvar('Sm m/s'),self.getvar('Dm G'))
         return U
+
     def __V(self):
         """
         Return the wind in the Y direction (V) in m/s
@@ -305,63 +229,130 @@ class man(object):
         newdata=newdata.reindex(index=idx)
         return newdata
 
-    def getData(self,var= None,From=None,To=None,by=None , group = None ,rainfilter = None , reindex ="None"):
+    def getData(self,var= None, every=None, From=None,To=None,by=None, how = None , group = None ,rainfilter = None , reindex =None):
         """
         DESCRIPTION
-            Get the data of the station and resample them
+            More sophisticate methods to get the LCBobject data than "getvar"
         INPUT
             If no arguments passed, the methods will look on the user specified parameters of the station
             If their is no parameters passed, it will take the parameters by default
             
-            group: 'D':Day, 'H':hour , 'M':minute
+            var: list of variable name
+            
+            group: 'D':Day, 'H':hour , 'M':minute, 'MH': minutes and hours
+            
+            resample:
+                    B       business day frequency
+                    C       custom business day frequency (experimental)
+                    D       calendar day frequency
+                    W       weekly frequency
+                    M       month end frequency
+                    BM      business month end frequency
+                    CBM     custom business month end frequency
+                    MS      month start frequency
+                    BMS     business month start frequency
+                    CBMS    custom business month start frequency
+                    Q       quarter end frequency
+                    BQ      business quarter endfrequency
+                    QS      quarter start frequency
+                    BQS     business quarter start frequency
+                    A       year end frequency
+                    BA      business year end frequency
+                    AS      year start frequency
+                    BAS     business year start frequency
+                    BH      business hour frequency
+                    H       hourly frequency
+                    T       minutely frequency
+                    S       secondly frequency
+                    L       milliseonds
+                    U       microseconds
+                    N       nanoseconds
         """
         if From == None:
             From=self.getpara('From')
         if To == None:
             To=self.getpara('To')
-        if by == None:
-            by=self.getpara('By')
+#         if by == None:
+#             by=self.getpara('By')
+
 
         if var == None:
             print('Bite')
             data = self.Data
+
         else:
-            if var not in self.Data.columns:
-                try: 
+            if not isinstance(var, list):
+                var = [var]
+            for v in var:
+                if v not in self.Data.columns:
+                    try: 
+                        data = self.Data
+                        data[v] = self.getvar(v) # calculate the variable
+                    except KeyError:
+                        raise('This variable do not exist and cannot be calculated')
+                else:
                     data = self.Data
-                    data[var] = self.getvar(var)
-                except KeyError:
-                    raise('This variable do not exist and cannot be calculated')
-            else:
-                data = self.Data
 
-
-#------------------------------------------------------------------------------ 
         if reindex == True:
             data = self.reindex(data[From:To])
         else:
             data = data[From:To]
 
-#------------------------------------------------------------------------------ 
         if rainfilter == True: # need to be implemented in a method
             data=data[data['Rc mm'].resample("3H",how='mean').reindex(index=data.index,method='ffill')< 3]
             if data.empty:
                 raise ValueError(" The rainfilter removed all the data -> ")
 
-#------------------------------------------------------------------------------ 
         if by != None:
-            data=data.resample(by)
+            data=data.resample(by, how = how)
 
-#------------------------------------------------------------------------------ 
-        if group == True:
-            if data.index.hour.sum() == 0:
-                data=data.groupby(lambda t: (t.day)).mean()
+#        SHOULD BE WORKING -> I don't remeneber why I did this
+#         if group == True:
+#             if data.index.hour.sum() == 0:
+#                 data=data.groupby(lambda t: (t.day)).mean()
+#             else:
+#                 if data.index.minute.sum() == 0:
+#                     data=data.groupby(lambda t: (t.hour)).mean()
+#                 else:
+#                     data=data.groupby(lambda t: (t.hour,t.minute)).mean()
+        if group == 'M':
+            data=data.groupby(lambda t: (t.month)).mean()
+
+        if group == 'D':
+            data=data.groupby(lambda t: (t.day)).mean()
+
+        if group == 'H':
+            data=data.groupby(lambda t: (t.hour)).mean()
+
+        if group == 'T':
+            data=data.groupby(lambda t: (t.minute)).mean()
+
+        if group == "TH":
+            data=data.groupby(lambda t: (t.hour,t.minute)).mean()
+
+
+        if every == "M" and var != None:
+            if group:
+                raise AttributeError('Option "every" can not work with the function group')
             else:
-                if data.index.minute.sum() == 0:
-                    data=data.groupby(lambda t: (t.hour)).mean()
-                else:
-                    data=data.groupby(lambda t: (t.hour,t.minute)).mean()
-#------------------------------------------------------------------------------ 
+                data=data.resample(by, how = how) # I make it again just in case
+                data['index'] = data.index
+                data['index'] = data['index'].map(lambda x: x.strftime('%Y-%m'))
+
+                data['days'] = data.index.day
+                data = pd.pivot_table(data, index = ['days'], columns=['index'], values=var)
+
+        if every == "D" and var != None:
+            if group:
+                raise AttributeError('Option "every" can not work with the function group')
+            else:
+                data=data.resample(by, how = how) # I make it again just in case
+                data['index'] = data.index
+                data['index'] = data['index'].map(lambda x: x.strftime('%Y-%m-%d'))
+
+                data['hours'] = data.index.hour
+                data = pd.pivot_table(data, index = ['hours'], columns=['index'], values=var)
+
         if var == None:
             return data
         else:
@@ -369,8 +360,10 @@ class man(object):
 
     def getvar(self,varname,From=None,To=None,rainfilter=None):
         """
-        Get a variables of the station
-        
+        DESCRIPTION
+            Get a variables of the station
+        INPUT:
+            varname: string
         """
         
         if From == None:
@@ -393,22 +386,6 @@ class man(object):
                 print('This variable cant be calculated')
         if rainfilter == True:
             return self.__rainfilter(var)
-
-#             except IndexError:
-#                 print('Cant calculate because no data')
-#                 var=pd.DataFrame(self.Data,index=self.Data.index,columns=[varname])
-#                 var=var[varname][self.getpara('From'):self.getpara('To')]
-#                 return var
-#             except KeyError:
-#                 print('Impossible to calculate this variable')
-#             except IndexError:
-#                 var=self.getvarRindex(varname)
-#                 print('Reindexing')
-#                 return var
-#         except IndexError:
-#             var=self.getvarRindex(varname)
-#             print('Reindexing')
-#             return var
 
     def DailyDiffnet(self):
   
@@ -439,29 +416,85 @@ class man(object):
 # Station
 #===============================================================================
 
+
+class AttVar(object):
+    """
+    DESCRIPTION
+        contain the attribut of the variable of the Ribeirao Das Posses
+    NOTE
+        In the futur when I create this kind of class to access the attribut
+        I should make them general.
+        Because I already created this kind of class called "att_sta" but it wasn't too general
+    """
+    def __init__(self):
+        self._attname = ['longname']
+        self._att = {'Ta C':{'longname': 'Temperature (C)'},
+                     'Theta C':{'longname':'Potential temperature (C)'},
+                     'Sm m/s':{'longname':'wind speed (m/s)'},
+                     'Dm G':{'longname':'Wind direction (degree)'},
+                     'U m/s':{'longname':'Zonal wind  (m/s)'},
+                     'V m/s':{'longname':'Meridional wind  (m/s)'},
+                     'Bat mV':{'longname':'Battery (mV)'},
+                     'Rc mm':{'longname':'Accumulated precipitation (mm)'},
+                     'Ua %':{'longname':'Relative humidity (%)'},
+                     'Ua g/kg':{'longname':'Specific humidity (g/kg)'},
+                     }
+    def showatt(self):
+        print(self._attname)
+    
+    def getatt(self,object, attnames):
+        """
+        INPUT
+            staname : list. name of the stations 
+            att : scalar. name of the attribut
+        Return 
+            return attributs in a list
+        TODO
+            just return a dictionnary
+        """
+
+        att = [ ]
+        if type(attnames) != list:
+            try:
+                if type(attnames) == str:
+                    attnames = [attnames]
+            except:
+                raise
+        
+        for attname in attnames:
+            try:
+                att.append(self._att[object][attname])
+            except KeyError:
+                
+                raise KeyError('The parameter' + attname + ' do not exist')
+        return att
+
+
 class att_sta(object):
     """
-    Class containing metadata informations about the climatic network in Extrema 
+    DESCRIPTION
+        -> Class containing metadata informations about the climatic network in Extrema
+        -> Contain methods to manipulate the network metadata 
     """
     def __init__(self):
         self.__attributes=['Lon','Lat','network','side','Altitude','position']
         self.__stapos={
-                       'C15':{'Lon':-46.237139,'Lat':-22.889639,'network':'Head','side':'East','Altitude':1342,'position':'ridge','watershed':'Ribeirao'},
-                       'C14':{'Lon':-46.238472,'Lat':-22.889139,'network':'Head','side':'East','Altitude':1279,'position':'slope','watershed':'Ribeirao'},
-                       'C13':{'Lon':-46.241278,'Lat':-22.888389,'network':'Head','side':'East','Altitude':1206,'position':'slope','watershed':'Ribeirao'},
-                       'C12':{'Lon':-46.243694,'Lat':-22.886278,'network':'Head','side':'East','Altitude':1127,'position':'slope','watershed':'Ribeirao'},
-                       'C11':{'Lon':-46.245861,'Lat':-22.883444,'network':'Head','side':'East','Altitude':1077,'position':'valley','watershed':'Ribeirao'},
-                       'C10':{'Lon':-46.246944,'Lat':-22.883306,'network':'Head','side':'East','Altitude':1031,'position':'valley','watershed':'Ribeirao'},
-                       'C09':{'Lon':-46.258833,'Lat':-22.870194,'network':'Head','side':'West','Altitude':1356,'position':'ridge','watershed':'Ribeirao'},
-                       'C08':{'Lon':-46.256667,'Lat':-22.874111,'network':'Head','side':'West','Altitude':1225,'position':'slope','watershed':'Ribeirao'},
-                       'C07':{'Lon':-46.254528,'Lat':-22.876861,'network':'Head','side':'West','Altitude':1186,'position':'slope','watershed':'Ribeirao'},
-                       'C06':{'Lon':-46.252861,'Lat':-22.877917,'network':'Head','side':'West','Altitude':1140,'position':'slope','watershed':'Ribeirao'},
-                       'C05':{'Lon':-46.251667,'Lat':-22.881167,'network':'Head','side':'West','Altitude':1075,'position':'valley','watershed':'Ribeirao'},
-                       'C04':{'Lon':-46.249083,'Lat':-22.880972,'network':'Head','side':'West','Altitude':1061,'position':'valley','watershed':'Ribeirao'},
-                       'C16':{'Lon':-46.247306,'Lat':-22.863028,'network':'Medio','side':'West','Altitude':1078,'position':'slope','watershed':'Ribeirao'},
-                       'C17':{'Lon':-46.243944,'Lat':-22.864778,'network':'Medio','side':'East','Altitude':1005,'position':'valley','watershed':'Ribeirao'},
-                       'C18':{'Lon':-46.238611,'Lat':-22.864139,'network':'Medio','side':'East','Altitude':1069,'position':'slope','watershed':'Ribeirao'},
-                       'C19':{'Lon':-46.236139,'Lat':-22.864389,'network':'Medio','side':'East','Altitude':1113,'position':'slope','watershed':'Ribeirao'}
+                       'C15':{'Lon':-46.237139,'Lat':-22.889639,'network':'Head','side':'East','Altitude':1342,'position':'ridge','watershed':'Ribeirao','d_river':1350},
+                       'C14':{'Lon':-46.238472,'Lat':-22.889139,'network':'Head','side':'East','Altitude':1279,'position':'slope','watershed':'Ribeirao','d_river':1220},
+                       'C13':{'Lon':-46.241278,'Lat':-22.888389,'network':'Head','side':'East','Altitude':1206,'position':'slope','watershed':'Ribeirao','d_river':880},
+                       'C12':{'Lon':-46.243694,'Lat':-22.886278,'network':'Head','side':'East','Altitude':1127,'position':'slope','watershed':'Ribeirao','d_river':580},
+                       'C11':{'Lon':-46.245861,'Lat':-22.883444,'network':'Head','side':'East','Altitude':1077,'position':'valley','watershed':'Ribeirao','d_river':120},
+                       'C10':{'Lon':-46.246944,'Lat':-22.883306,'network':'Head','side':'East','Altitude':1031,'position':'valley','watershed':'Ribeirao','d_river':30},
+                       'C09':{'Lon':-46.258833,'Lat':-22.870194,'network':'Head','side':'West','Altitude':1356,'position':'ridge','watershed':'Ribeirao','d_river':1640},
+                       'C08':{'Lon':-46.256667,'Lat':-22.874111,'network':'Head','side':'West','Altitude':1225,'position':'slope','watershed':'Ribeirao','d_river':1290},
+                       'C07':{'Lon':-46.254528,'Lat':-22.876861,'network':'Head','side':'West','Altitude':1186,'position':'slope','watershed':'Ribeirao','d_river':860},
+                       'C06':{'Lon':-46.252861,'Lat':-22.877917,'network':'Head','side':'West','Altitude':1140,'position':'slope','watershed':'Ribeirao','d_river':700},
+                       'C05':{'Lon':-46.251667,'Lat':-22.881167,'network':'Head','side':'West','Altitude':1075,'position':'valley','watershed':'Ribeirao','d_river':260},
+                       'C04':{'Lon':-46.249083,'Lat':-22.880972,'network':'Head','side':'West','Altitude':1061,'position':'valley','watershed':'Ribeirao','d_river':200},
+                       'C16':{'Lon':-46.247306,'Lat':-22.863028,'network':'Medio','side':'West','Altitude':1078,'position':'slope','watershed':'Ribeirao','d_river':350},
+                       'C17':{'Lon':-46.243944,'Lat':-22.864778,'network':'Medio','side':'East','Altitude':1005,'position':'valley','watershed':'Ribeirao','d_river':60},
+                       'C18':{'Lon':-46.238611,'Lat':-22.864139,'network':'Medio','side':'East','Altitude':1069,'position':'slope','watershed':'Ribeirao','d_river':560},
+                       'C19':{'Lon':-46.236139,'Lat':-22.864389,'network':'Medio','side':'East','Altitude':1113,'position':'slope','watershed':'Ribeirao','d_river':790}
                        }
     def sortsta(self,sta,latlon):
         """
@@ -472,16 +505,16 @@ class att_sta(object):
         RETURN: {stations_name,positions} sorted dictionnary
         pos={}
         """
-        position=[]
+        metadata=[]
         staname=[]
         pos={}
         for i in sta:
             pos[i]=self.getatt(i, latlon)
         sorted_pos = sorted(pos.items(), key=operator.itemgetter(1))
         for i in sorted_pos:
-            position.append(i[1])
+            metadata.append(i[1])
             staname.append(i[0])
-        return {'staname':staname,'position':position}
+        return {'stanames':staname,'metadata':metadata}
 
     def stations(self,values):
         """
@@ -510,7 +543,7 @@ class att_sta(object):
     def showatt(self):
         print(self.__attributes)
 
-    def getatt(self,staname,att):
+    def getatt(self,stanames,att):
         """
         INPUT
             staname : list. name of the stations 
@@ -522,18 +555,16 @@ class att_sta(object):
         """
 
         staatt = [ ]
-        if type(staname) != list:
-            print ('staname should be a list')
+        if type(stanames) != list:
             try:
-                print('convert into a list')
-                if type(staname) == str:
-                    staname = [staname]
+                if type(stanames) == str:
+                    stanames = [stanames]
             except:
                 raise
         
-        for s in staname:
+        for staname in stanames:
             try:
-                staatt.append(self.__stapos[s][att])
+                staatt.append(self.__stapos[staname][att])
             except KeyError:
                 
                 raise KeyError('The parameter' + att + ' do not exist')
@@ -558,15 +589,151 @@ class att_sta(object):
             InPath = f
             self.setatt(staname, 'InPath', InPath)
 
+    def dist_sta(self,couples, formcouples = None):
+        """
+            DESCRIPTION
+                Calculate the distance between two points
+            INPUT
+                list of couple of station names 
+                Couple = TRUE => will form the list of couple from 
+            OUTPUT
+                return a list of the distance in kilometer (
+            EXAMPLE
+                couple = [['C15','C04']]
+                dist_sta(couple)
+                
+                stationnames = ['C15','C04','C05']
+                dist_sta()stationnames, formcouple=True)
+        """
 
-class LCB_station(man):
+        def rearange(sortedlist):
+            """
+            DESCRIPTION
+                Rearange the stations name list to form couple
+                 which are the input of the att_sta.dist_sta() 
+            """
+            couple = [ ]
+            for ini,end in zip(sortedlist[:-1],sortedlist[1:]):
+                couple.append([ini,end])
+            return couple
+        
+        if formcouples == True:
+            if isinstance(couples,list):
+                couples = rearange(couples)
+            else:
+                raise TypeError('Must be a list !')
+
+        # make sure we have a list
+        if isinstance(couples,list):
+            pass
+        else:
+            couples = [couples]
+    
+        # make sure we have a list of list
+        if all(isinstance(i, list) for i in couples):
+            pass
+        else:
+            couples = [couples]
+    
+        dist = [ ]
+        for sn in couples:
+            print sn
+            lat1 = self.getatt(sn[0],'Lat')[0]
+            lon1 = self.getatt(sn[0],'Lon')[0]
+            pos1 = (lat1,lon1)
+            
+            lat2 = self.getatt(sn[1],'Lat')[0]
+            lon2 = self.getatt(sn[1],'Lon')[0]
+            pos2 = (lat2,lon2)
+            
+            dist.append(vincenty(pos1,pos2).km)
+    
+        return dist
+
+
+class Plots():
+    """
+    Class container
+    Contain all the plot which can be applied to a station
+    """
+
+    def __init__(self):
+        pass
+
+    def TimePlot(self,var='Ta C', by = None, group = None, subplots = None, From=None, To=None, outpath='/home/thomas/'):
+
+            if not isinstance(var, list):
+                var = [var]
+            for v in var:
+                data=self.getData(var=v,From=From,To=To,by=by, group = group)
+                data.plot(subplots = subplots)
+                
+                objectname = self.getpara('stanames')
+                if isinstance(objectname, list):
+                    objectname = "network" # should be implemented somewhere else
+
+                plt.savefig(outpath+v[0:2]+objectname+"_TimePlot.png")
+                print('Saved at -> ' +outpath)
+                plt.close()
+
+    def dailyplot(self,var = None, From=None, To=None, group= None, save= False, outpath = "/home/thomas/", labels = None):
+        """
+        Make a daily plot of the variable indicated
+        """
+        lcbplot = LCBplot() # get the plot object
+        argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+        arglabel = lcbplot.getarg('label')
+        argticks = lcbplot.getarg('ticks')
+        argfig = lcbplot.getarg('figure')
+        arglegend = lcbplot.getarg('legend')
+        
+        plt.figure(**argfig)
+        print From
+        print To
+        
+        
+
+        for v in var:
+            plt.close()
+            color = iter(["r", "b"])
+            for from_ , to_, label in zip(From, To, labels):
+                c = color.next()
+                data = self.getData(var = v, From = from_, To=to_)
+                quartile1 = data.groupby(lambda x: x.hour).quantile(q=0.10)
+                quartile3 = data.groupby(lambda x: x.hour).quantile(q=0.90)
+                mean = data.groupby(lambda x: x.hour).mean()
+                print "-->" + str(quartile1.columns)
+                
+                plt.fill_between(quartile1[v].index.values, quartile1[v].values, quartile3[v].values, alpha=0.1,color=c)
+    
+                plt.plot([], [], color=c, alpha=0.1,linewidth=10, label=(label+' q=0.90 & 0.10'))
+      
+    
+                plt.plot(mean[v].index.values, mean[v].values,linewidth = 2, linestyle='--', color=c, alpha=0.7, label=(label+' mean'))
+                
+    
+    
+            plt.ylabel(v, **arglabel)
+            plt.xlabel( "Hours", **arglabel)
+            plt.grid(True)
+            plt.tick_params(axis='both', which='major', **argticks)
+            plt.tick_params(axis='both', which='major', **argticks)
+            plt.legend(**arglegend)
+    
+            if not save:
+                plt.show()
+            else:
+                plt.savefig(outpath+v[0:2]+"_dailyPlot.png")
+
+
+class LCB_station(man, Plots):
     """
     DESCRIPTION
         Contain the data of ONE WXT! and the different module to transform the data in some specific way.
     PROBLEM
         SHould calculate the specific variables only when asked
     """
-    
+
     def __init__(self,InPath):
         """
         PROBLEM
@@ -576,7 +743,6 @@ class LCB_station(man):
         """
         
         self.Data=pd.read_csv(InPath,sep=',',index_col=0,parse_dates=True)
-        
         self.para={
         }
         self.paradef={
@@ -592,7 +758,7 @@ class LCB_station(man):
                     'group':'1H',
                     "dirname":os.path.dirname(InPath),
                     "filename":os.path.basename(InPath),
-                    "staname":os.path.basename(InPath)[0:3]
+                    "stanames":os.path.basename(InPath)[0:3]
         }
         self.__poschar()
 
@@ -601,7 +767,7 @@ class LCB_station(man):
         attributes = AttSta._att_sta__attributes
         try:
             for att in attributes:
-                self.setpara(att,AttSta.getatt(self.getpara('staname'), att))
+                self.setpara(att,AttSta.getatt(self.getpara('stanames'), att))
         except KeyError:
             print('This stations doesnt have characteristics')
 
@@ -613,6 +779,7 @@ class LCB_station(man):
             print i
         for i in self.module:
             print i
+
     def showpara(self):
         for i in self.para:
             print i
@@ -640,15 +807,47 @@ class LCB_station(man):
             try:
                 val=self.paradef[paraname]
                 return val
+            
             except KeyError:
                 print('this parameter dosenot exist '+ paraname)
+                raise
 
-    def setpara(self,name,value):
-        self.para[name]=value
-        if name == 'To' or name == 'From':
-            time=pd.to_datetime(value)
-            self.para[name]=time
-        print('The para '+str(name)+ 'has been set to'+str(value))
+    def setpara(self,name,value,key = None, append = None):
+        """
+        DESCRIPTION
+            Set the parameter of the LCB object
+        INPUT
+            name : name of the parameter
+            value: value of the parameter
+            keys: if Keys != None then it will be the key of a dictionnary
+            append: if == None then the newvalue overwrite the old one
+        """
+
+        if name == 'To' or name == 'From': # convert in datetime format
+            value=pd.to_datetime(value)
+
+
+        if append == None:
+            if key == None:
+                self.para[name]=value
+            else:
+                self.para[name] = {key:value}
+        else:
+            try:
+                if key == None:
+                    oldpara = self.para[name]
+                    print oldpara
+                    oldpara.append(value)
+                else:
+                    oldpara = self.para[name]
+                    oldpara[key] = value
+                self.para[name] = oldpara
+            except KeyError:
+                # To initialise the parameter
+                if key == None:
+                    self.para[name]=value
+                else:
+                    self.para[name] = {key:value}
 
     def __deregister(self, net):
         self.my_net = None
@@ -664,10 +863,9 @@ class LCB_station(man):
         else:
             print "i dont belong to any net"
 
+
 class LCB_net(LCB_station, man):
     def __init__(self):
-        self.__guys = {}
-        self.__stanames=[]
         self.min = None
         self.max = None
         self.mean = None
@@ -684,8 +882,31 @@ class LCB_net(LCB_station, man):
                     'To':None,
                     'From':None
         }
+        
+        self.setpara('stanames',[])
+        self.setpara('guys', {}) # ask Marcelo is it good to put the LCB object in the parameters?
 
-    def getsta(self,staname, all=None, sorted=None):
+    def getvarallsta(self, var = None,stanames = None, all = None, by = None, how = None, From=None,To=None):
+        """
+        DESCRIPTION
+            return a dataframe with the selected variable from all the stations
+        TODO 
+            UTLISER arg* et kwarg pour passer les argument a 
+            getData sans avoir besoin de tous les recrires
+        """
+        if all == True:
+            stanames = self.getpara('stanames')
+        
+        df = pd.DataFrame()
+        for staname in stanames:
+            station = self.getsta(staname)[0]
+            s = station.getData(var = var, by = by, how = how, From=From, To=To)
+            s.columns = [staname]
+            df = pd.concat([df,s], axis=1)
+
+        return df
+
+    def getsta(self,staname, all=None, sorted=None, filter=None):
         """
         Description
             Input the name of the station and give you the station object of the network
@@ -695,16 +916,19 @@ class LCB_net(LCB_station, man):
             
             if sorted != None. Le paramtere fourni sera utilise pour ordonner en ordre croissant la liste de stations 
             dans le reseau
+            In this case it return a dictionnary with the key "staname" with the stanames sorted
+            and a key stations with the coresponding stations sorted
+            
+            if filter != None. list of parameter Seulement les stations contenant le parametre donner seront selectionner.
         Example
             net.getsta('C04')
             net.getsta('',all=True)
             net.getsta('',all=True,sorted='Lon')
+            net.getsta('',all=True,sorted='Lon', filter =['West'])
         """
         
         if type(staname) != list:
-            print ('staname should be a list')
             try:
-                print('convert into a list')
                 if type(staname) == str:
                     staname = [staname]
             except:
@@ -712,6 +936,7 @@ class LCB_net(LCB_station, man):
 
         if all==True:
             try:
+                staname = self.getpara('stanames')
                 sta = self.getpara('guys')
             except:
                 print('COULDNT GIVE THE NAME OF ALL THE STATIONS')
@@ -720,32 +945,45 @@ class LCB_net(LCB_station, man):
             try:
                 sta = [ ]
                 for s in staname:
-                    sta.append( self.__guys[s])
+                    sta.append( self.getpara('guys')[s])
             except KeyError:
+                print(s)
                 raise KeyError('This stations is not in the network')
 
-        if sorted != None and all == True:
-            names = self.getpara('stanames')
-            sortednames=att_sta().sortsta(names,sorted)
-            sortednames=sortednames['staname']
+        if filter != None:
+            staname=att_sta().stations(filter)
             sta = [ ]
+            for i in staname:
+                sta.append(self.getpara('guys')[i])
+
+        if sorted != None:
+            sortednames=att_sta().sortsta(staname,sorted)
+            sortednames=sortednames['stanames']
+            print sortednames
+            sta['stanames'] =  sortednames
+            s = []
             for i in sortednames:
-                sta.append(self.__guys[i])
+                s.append(self.getpara('guys')[i])
+            sta['stations'] = s
+            print(sta)
         return sta 
 
     def report(self):
-        print "Their is %d stations in the network" % len(self.__guys)
-        for i,v in enumerate(self.__guys):
-            v
-            self.__stanames[i]
+        guys = self.getpara('guys')
+        stanames = self.getpara('stanames')
+        print "Their is %d stations in the network. which are:" % len(guys)
+        print stanames
+
     def remove(self, item):
-        item._com_sta__deregister(self)# _Com_sta - why  ? ask Marcelo
-        self.guys.remove(item)
+        item._LCB_station__deregister(self)# _Com_sta - why  ? ask Marcelo
+        guys = self.getpara('guys')
+        del guys[item.getpara('stanames')]
+        self.setpara('guys',guys)
         self.min = None
         self.max = None
         self.Data = None
-        for guy in self.__guys:
-            self.__update__(guy)
+        for guy in self.getpara('guys'):
+            self.__update(guy)
 
     def AddFilesSta(self,Files):
         print('Adding ')
@@ -754,18 +992,86 @@ class LCB_net(LCB_station, man):
             sta=LCB_station(i)
             self.add(sta)
 
-    def add(self, item):
-        print('========================================================================================')
-        print('Adding To the network -> '+item.getpara('InPath'))
-        staname=item.getpara('staname')
-        self.__stanames.append(staname)
-        self.__guys[staname]=item
+    def add(self, items):
+        """
+            DESCRIPTION
+                Add an LCB_object
+        """
 
+        if isinstance(items, list):
+            for item in items:
+                self.__add_item(item)
+        else:
+            print('one network')
+            print items
+            self.__add_item(items)
+
+    def validfraction(self, plot = None):
+        """
+        DESCRIPTION
+            Calculate the percentage of the available data in the network
+
+        OUTPUT
+            dataframe
+            column "fraction" is the porcentage of available data in the network
+            the other columns reprensent the availability of each stations
+
+        EXAMPLE
+            dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+            AttSta = att_sta()
+            AttSta.setInPaths(dirInPath)
+            Files =AttSta.getatt(AttSta.stations([]),'InPath')
         
-        self.setpara('stanames',self.__stanames)
-        self.setpara('guys',self.__guys)
+            net=LCB_net()
+            net.AddFilesSta(Files)
+            
+            df= net.validfraction()
+            df['fraction'].resample('M').plot(kind='bar')
+            plt.show()
+        """
+        nbsta = len(self.getpara('guys'))
+        stations = self.getpara('guys')
+        
+        df = pd.DataFrame()
+        for sta in stations.keys():
+            index = stations[sta].Data.index
+            s = pd.Series([1]*len(index), index = index)
+            ndf = pd.DataFrame(s,columns =[sta])
+            df = df.join(ndf, how = 'outer')
+    
+        df['fraction'] = (df.sum(axis=1)/nbsta)*100
+        
+        if plot == True:
+            df['fraction'].plot()
+            plt.show()
+        return df
+
+    def __object_name(self):
+        """
+        DESCRIPTION
+            Create a default name for the LCB object
+        """
+        try:
+            nbobject = len(self.getpara('stanames'))
+        except:
+            nbobject = 0
+        return "LCB_object"+str(nbobject+1)
+
+    def __add_item(self,item):
+        try:
+            staname=item.getpara('stanames')
+        except KeyError:
+            print("Give a default name to the LCB_object")
+            staname = self.__object_name()
+
+        print('========================================================================================')
+        print('Adding To the network/group -> '+ str(staname))
+        self.setpara('stanames',staname, append =True)
+        self.setpara('guys',item, key= staname, append = True)
+        self.getpara('guys')
+
         self.__update(item)
-        item._LCB_station__register(self)# _com_sta why ? ask Marcelo
+        item._LCB_station__register(self)
 
     def __update(self, item):
         """
@@ -784,7 +1090,7 @@ class LCB_net(LCB_station, man):
             self.min=pd.concat((self.min,Data))
             self.min=self.min.groupby(self.min.index).min()
             #------------------------------------------------------------------------------
-            net_data=[self.Data]*(len(self.__guys)-1)# Cette technique de concatenation utilise beaucoup de mermoire
+            net_data=[self.Data]*(len(self.getpara('guys'))-1)# Cette technique de concatenation utilise beaucoup de mermoire
             net_data.append(Data)
             merged_data=pd.concat(net_data)
             self.Data=merged_data.groupby(merged_data.index).mean()
@@ -796,123 +1102,109 @@ class LCB_net(LCB_station, man):
             self.Data=Data
             self.min=Data
             self.max=Data
-        # I dont know what is the following code
-#         for i in item.daily().columns:
-#                 try:
-#                     self.max[i]= pd.DataFrame({ 'net' : self.max[i], 'NewSta' : item.daily()[i] }).max(1)
-#                     self.min[i]= pd.DataFrame({ 'net' : self.min[i], 'NewSta' : item.daily()[i] }).min(1)
-#                     self.mean[i]= (self.mean[i]*(len(self.guys)-1)+item.daily()[i])/len(self.guys)
-#                 except KeyError:
-#                     print('Adding a new column: '+i)
-#                     print(item.daily()[i])
-#                     self.max[i]=item.daily()[i]
-#                     self.min[i]=item.daily()[i]
-#                     self.mean[i]=item.daily()[i]
-#                 except TypeError:
-#                     print('Initiating data network')
-#                     self.max=item.daily()
-#                     self.min=item.daily()
-#                     self.mean=item.daily()
 
 
-class Plots():
-    """
-    Class container
-    Contain all the plot which can be applied to a station
-    """
-
-    def __init__(self):
-        pass
-
-    def TimePlot(self,var, Byvar = None, group = None):
-            InPath=self.LCB_station.getpara('InPath')
-            out=self.getpara('OutPath')
-            
-            From=self.LCB_station.getpara('From')
-            To=self.LCB_station.getpara('To')
-            data=self.LCB_station.getData(var=var,From=From,To=To,by=Byvar, group = group)
-            staname= self.LCB_station.getpara('staname')
-
-            data.plot()
-            plt.savefig(out+"_"+staname+'_'+var+'.png')
-            print('Saved at -> ' +out)
-            plt.close()
-
-    
-
-class LCBplot(Plots):
-    def __init__(self,LCB_object):
+class LCBplot():
+    def __init__(self,):
         """
-        INPUT
+        DESCRIPTION
+            this class contains the methods to manage plot object
+            It contains also the basin parameters that I need to make my beautiful plots
+        NOTE
+            This class need to be very basic to be use in all the plot of the package beeing
+            developped
+        
+        BEFORE MODIFICATION
             LCB_object: can be either a station or a network
         This class could made to be used both on the ARPS and LCBnet program
         """
 
-        self.para= { }
-        self.paradef= {
+        self.argdef= {
             'OutPath':'/home/thomas/',
             'screen_width':1920,
             'screen_height':1080,
-            'DPI':96,
+            'dpi':96,
             }
+        
+
+        self.arg = {
+                 'legend':{
+                           "prop":{"size":20}, # legend size
+                           "loc":"best"
+                           },
+                 'figure':{
+                        },
+                 'plot':{
+                         'markersize':10,
+                         'alpha':1
+                         },
+                 'label':{
+                          "fontsize":30
+                         },
+                'ticks':{
+                         'labelsize':30
+                         }
+                     
+                }
         self.__figwidth()
-        self.__subtitle(LCB_station)
-        self.LCB_station=LCB_station
 
     def __figwidth(self):
-        width=self.getpara('screen_width')
-        height=self.getpara('screen_height')
-        DPI=self.getpara('DPI')
+        width=self.getarg('screen_width')
+        height=self.getarg('screen_height')
+        DPI=self.getarg('dpi')
         wfig=width/DPI #size in inches 
         hfig=height/DPI
-        self.setpara('wfig',wfig)
-        self.setpara('hfig',hfig)
+        self.setarg('wfig',wfig)
+        self.setarg('hfig',hfig)
+        self.arg['figure']['figsize'] = (wfig, hfig)
+        self.arg['figure']['dpi'] = DPI
+        
 
-    def __subtitle(self,LCB_station):
-        """
-        Write the subtitle of the plot
-        """
-        sub=LCB_station.getpara('From')
-        self.setpara('subtitle', sub)
+#     def __subtitle(self,LCB_station):
+#         """
+#         Write the subtitle of the plot
+#         """
+#         sub=LCB_station.getarg('From')
+#         self.setarg('subtitle', sub)
 
-    def setpara(self,parameter,value):
-        self.para[parameter]=value
-        print(str(parameter)+' has been set to -> '+ str(value))
+    def setarg(self,argmeter,value):
+        self.arg[argmeter]=value
+        print(str(argmeter)+' has been set to -> '+ str(value))
 
-    def getpara(self,parameter):
+    def getarg(self,argmeter):
         try:
-            return self.para[parameter]
+            return self.arg[argmeter]
         except KeyError:
-            print(parameter + ' has been not set -> Default value used ['+str(self.paradef[parameter])+']')
+            print(argmeter + ' has been not set -> Default value used ['+str(self.argdef[argmeter])+']')
             try:
-                return self.paradef[parameter]
+                return self.argdef[argmeter]
             except KeyError:
-                print(parameter+ ' dont exist')
+                print(argmeter+ ' dont exist')
 
-    def delpara(self,varname):
+    def delarg(self,varname):
         try:
-            del self.para[varname]
-            print('Deleted parameter-> ',varname)
+            del self.arg[varname]
+            print('Deleted argmeter-> ',varname)
         except KeyError:
-            print('This parameter dont exist')
+            print('This argmeter dont exist')
 
-    def __setparadef(self,parameter,value):
-        self.paradef[parameter]=value
-        print(str(parameter)+' has been set by [default] to -> '+ str(value))
+    def __setargdef(self,argmeter,value):
+        self.argdef[argmeter]=value
+        print(str(argmeter)+' has been set by [default] to -> '+ str(value))
 
-    def __getparadef(self,parameter):
+    def __getargdef(self,argmeter):
         try:
-            return self.paradef[parameter]
+            return self.argdef[argmeter]
         except KeyError:
-                print(parameter+ ' by [default] dont exist')
+                print(argmeter+ ' by [default] dont exist')
 
     def __levels(self,varname):
-        self.paradef['nlevel']=10# number of discrete variabel level
-        self.paradef['varmax']=int(self.arps.get(varname).data.max())
-        self.paradef['varmin']=int(self.arps.get(varname).data.min())
-        varmax=self.getpara('varmax')
-        varmin=self.getpara('varmin')
-        nlevel=self.getpara('nlevel')
+        self.argdef['nlevel']=10# number of discrete variabel level
+        self.argdef['varmax']=int(self.arps.get(varname).data.max())
+        self.argdef['varmin']=int(self.arps.get(varname).data.min())
+        varmax=self.getarg('varmax')
+        varmin=self.getarg('varmin')
+        nlevel=self.getarg('nlevel')
         levels=np.linspace(varmin,varmax,nlevel)
         return levels
 

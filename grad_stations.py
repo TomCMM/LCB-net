@@ -4,15 +4,72 @@
 #    their difference of a specified variables.
 #===============================================================================
 
-#------------------------------------------------------------------------------ 
-# Library
 import glob
 from LCBnet_lib import *
 import matplotlib
 
-class plotclass():
-    def __init__(self,series):
-        self.series=series
+class Gradient():
+    """
+    DESCRIPTION
+        Calculate the gradient between two group of stations
+    INPUT
+        list of a list of the couple name 
+        e.g.: [[West, East],[Valley, Slope], [Mouth, Head]]
+    RETURN
+        A plot or the value of the gradient
+        
+    EXAMPLE
+        dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+        AttSta = att_sta()
+        AttSta.setInPaths(dirInPath)
+
+        grad = Gradient([['West', 'East'],['valley','slope'], ['Medio', 'Head']])
+        grad.grad(var=['Theta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
+        grad.tsplot(zero=True)
+        plt.show()
+    
+        plt.close()
+    """
+    def __init__(self, dirInPath):
+        self.AttSta = att_sta()
+        self.AttSta.setInPaths(dirInPath)
+
+    def couples_net(self, couples_name):
+        """
+        Description
+            Return couple of network
+        The third argument is applied for the selection of the both networks
+        """
+        couples_net = {}
+        new_couples_name = []
+        for couple_name in couples_name:
+
+            if len(couple_name) == 3:
+                print('Argument passed ')
+                group1 = self.AttSta.stations([couple_name[0], couple_name[2]])
+                group2 = self.AttSta.stations([couple_name[1], couple_name[2]])
+                couplename = couple_name[0]+"_"+couple_name[1]+"_"+couple_name[2]
+
+            else:
+                print "No argument passed"
+                group1 = self.AttSta.stations([couple_name[0]])
+                group2 = self.AttSta.stations([couple_name[1]])
+                couplename = couple_name[0]+"_"+couple_name[1]
+
+            Files1 = self.AttSta.getatt(group1, 'InPath')
+            Files2 = self.AttSta.getatt(group2, 'InPath')
+
+            net1 = LCB_net()
+            net2 = LCB_net()
+            net1.AddFilesSta(Files1)
+            net2.AddFilesSta(Files2)
+
+            couples_net[couplename] = [net1,net2]
+            new_couples_name.append(couplename)
+
+        self.couples_name = new_couples_name
+        self.couples_net = couples_net
+
     def ClassPeriod(self,serie):
         """
         INPUT
@@ -32,161 +89,140 @@ class plotclass():
                 1    2
             1    A    F
             2    B    G
+        NOTE
+            I am doing way better nowadays but it is working :)
         """
         newdf=pd.DataFrame()
+        column = serie.columns
+        serie.index = serie.index.hour
+        serie.columns = column
         for col in range(1,24):
             subdata=serie[serie.index == col]
             subserie = pd.DataFrame(np.array(subdata),index=range(len(subdata.index)),columns=[col])
             newdf = newdf.join(subserie,how='outer')
         return newdf
-    def tsplot(self,zero=None,grey=None):
+
+    def grad(self, rainfilter = False, var = 'Ta C', by= None, From = None, To = None, group=None, how=None, return_=None):
+        """
+        DESCRITPION
+            give the difference between a station and another
+        INPUT
+            stanames1: stations names of the first network
+            stanames2: stations names of the second network
+        """
+        
+        couples_net = self.couples_net
+        couples_name = self.couples_name
+        couples_grad = {}
+
+        if not isinstance(From, list):
+            From = [From]
+        if not isinstance(To, list):
+            To = [To]
+
+        new_couples_name = []
+        for from_ , to_ in zip(From, To):
+            for couple_name in couples_name:
+                new_couple_name =couple_name+str(from_)
+                net1 = couples_net[couple_name][0]
+                net2 = couples_net[couple_name][1]
+    
+                if not From:
+                    From = net1.getpara('From')
+                if not To:
+                    To = net1.getpara('To')
+                new_couples_name.append(new_couple_name)
+                couples_grad[new_couple_name] = net1.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter) - net2.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter)
+    
+        self.couples_name = new_couples_name
+        if return_:
+            return couples_grad
+        else:
+            self.couples_grad = couples_grad
+
+    def tsplot(self, zero=None, grey=None, outpath=None, quartile=True):
+        """
+        DESCRIPTION
+            make a time serie plot of the gradient of temperature given by the couples
+        INPUT
+            Need to run the methods grad before to launch this one
+        """
+        try:
+            couples_grad = self.couples_grad
+        except AttributeError:
+            print("Need to run the method grad before to run this one")
+
         fig, ax = plt.subplots()
         if grey == True:
             colors=list()
             for i in np.arange(1,0,-0.2):
-                print(plt.cm.jet(i))
-                print(colors)
                 colors.append(plt.cm.Greys(i))
         else:
-            colors=['b','g','r','c','m','y','k','w']
-        linestyles = ['-', '--', ':']
-        for serie,c,l in zip(self.series,colors,linestyles):
-            name=serie.columns[0]
-            print(name)
-            df=self.ClassPeriod(serie)
-            median=df.quantile(q=0.5,axis=0)
-            quartile1=df.quantile(q=0.25,axis=0)
-            quartile3=df.quantile(q=0.75,axis=0)
-            ax.fill_between(quartile1.index.values,quartile1.values,quartile3.values, alpha=0.3,color=c)
-            ax.plot(median.index.values,median.values,linestyle=l,color=c,alpha=0.8,label=name)
+            colors = ['b', 'g', 'r','b', 'g', 'r']
+        linestyles = ['-', '-', '-','--', '--', '--']
+        for couple, c, l in zip(self.couples_name, colors, linestyles):
+            serie = couples_grad[couple]
+            name = couple
+            df = self.ClassPeriod(serie)
+            median = df.quantile(q=0.5,axis=0)
+            if quartile:
+                quartile1 = df.quantile(q=0.25,axis=0)
+                quartile3 = df.quantile(q=0.75,axis=0)
+                ax.fill_between(quartile1.index.values, quartile1.values, quartile3.values, alpha=0.3,color=c)
+
+            ax.plot(median.index.values, median.values, linestyle=l, color=c, alpha=0.8, label=name)
         legend = ax.legend(loc='upper left', shadow=True)
-        if zero == True:
+        if zero:
             plt.axhline(0,color='black',alpha=0.2)
+        if outpath:
+            print "PLOTTED"
+            plt.savefig(outpath+ str(serie.columns[0][0:2])+ "_gradient.png")
+
+
 
 if __name__=='__main__':
-    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+    dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+    outpath = '/home/thomas/Z_article/'
+
+#===============================================================================
+# Quartiles
+#===============================================================================
+    grad = Gradient(dir_inpath)
+    grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
+#     grad.grad(var=['Ta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00')
+#     grad.tsplot(zero=True, outpath=outpath)
+# 
+#     grad.grad(var=['Ua g/kg'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
+#     grad.tsplot(zero=True, outpath=outpath)
+  
+    grad.grad(var=['Sm m/s'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
+    grad.tsplot(zero=True, outpath=outpath)
+#  
+#     grad.grad(var=['Theta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
+#     grad.tsplot(zero=True, outpath=outpath)
+
+#===============================================================================
+# Difference Summer Winter
+#===============================================================================
+#     grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
     
-    # Find all the clima and Hydro
-    Files=glob.glob(InPath+"*")
-    
-    #------------------------------------------------------------------------------ 
-    # Select network stations
-    AttSta=att_sta()
-    West=AttSta.stations(['West'])
-    East=AttSta.stations(['East'])
-    Valley=AttSta.stations(['valley'])
-    Slope=AttSta.stations(['slope'])
-    Mouth=AttSta.stations(['Medio'])
-    Head=AttSta.stations(['Head'])
-    Ribeirao=AttSta.stations(['Ribeirao'])
-    
-    SlopeEast=AttSta.stations(['slope','East'])
-    SlopeWest=AttSta.stations(['slope','West'])
-    ValleyEast=AttSta.stations(['valley','East'])
-    ValleyWest=AttSta.stations(['valley','West'])
-    
-    HeadValleyEast=AttSta.stations(['Head','valley','East'])
-    HeadValleyWest=AttSta.stations(['Head','valley','West'])
-
-
-    Westnet=LCB_net()
-    Eastnet=LCB_net()
-    Valleynet=LCB_net()
-    Slopenet=LCB_net()
-    Mouthnet=LCB_net()
-    Headnet=LCB_net()
-    Ribeiraonet=LCB_net()
-    
-    HeadValleyWestnet=LCB_net()
-    HeadValleyEastnet=LCB_net()
-    
-    
-    for i in Files:
-        print(i)
-        station = LCB_station(i)
-        print(station.reindex)
-        if station.getpara('InPath') =='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C18clear_merge.TXT':
-            station.Data.index=station.Data.index- pd.DateOffset(hours=3)
-        if station.getpara('staname') in West: Westnet.add(station)
-        if station.getpara('staname') in East: Eastnet.add(station)
-        if station.getpara('staname') in Valley: Valleynet.add(station)
-        if station.getpara('staname') in Slope: Slopenet.add(station)
-        if station.getpara('staname') in Mouth: Mouthnet.add(station)  
-        if station.getpara('staname') in Head: Headnet.add(station) 
-        if station.getpara('staname') in Ribeirao: Ribeiraonet.add(station)
-        if station.getpara('staname') in HeadValleyWest: HeadValleyWestnet.add(station) 
-        if station.getpara('staname') in HeadValleyEast: HeadValleyEastnet.add(station)
-
-# getvar dosent work for the network!!!!!
-# du coup il faut tous que je fasse a la main meme pour le filtre rain
+#     grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
+#   
+#     grad.grad(var=['Ua g/kg'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
+#  
+#     grad.grad(var=['Sm m/s'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
+#     
+#     grad.grad(var=['Theta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
 
 
 
-#Rain Selection
-AccDailyRain=Ribeiraonet.Data['Rc mm'].resample("3H",how='sum').reindex(index=Ribeiraonet.Data.index,method='ffill')
-
-netrain=Ribeiraonet.Data
-
-Ribeiraonet.Data=Ribeiraonet.Data[AccDailyRain < 0.1]
-Valleynet.Data=Valleynet.Data[AccDailyRain < 0.1]
-Slopenet.Data=Slopenet.Data[AccDailyRain < 0.1]
-Headnet.Data=Headnet.Data[AccDailyRain < 0.1]
-#Mouthnet.Data=Mouthnet.Data[AccDailyRain < 0.1]
-Westnet.Data=Westnet.Data[AccDailyRain < 0.1]
-Eastnet.Data=Eastnet.Data[AccDailyRain < 0.1]
-
-HeadValleyWestnet.Data=HeadValleyWestnet.Data[AccDailyRain < 0.1]
-HeadValleyEastnet.Data=HeadValleyEastnet.Data[AccDailyRain < 0.1]
-#------------------------------------------------------------------------------ 
-
-DT_SV = Valleynet.getData(var='Theta C', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00') - Slopenet.getData(var='Theta C', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')
-DT_HM = Headnet.getData(var='Theta C', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00') - Mouthnet.getData(var='Theta C', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00')
-DT_WE = Westnet.getData(var='Theta C', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00') - Eastnet.getData(var='Theta C', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')
-
-DU_SV = Valleynet.getData(var='Sm m/s', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')-Slopenet.getData(var='Sm m/s', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')
-DU_HM = Headnet.getData(var='Sm m/s', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00')-Mouthnet.getData(var='Sm m/s', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00')
-DU_WE = Westnet.getData(var='Sm m/s', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')-Eastnet.getData(var='Sm m/s', From ='2014-08-31 00:00:00',To ='2015-04-12 00:00:00')
-
-DH_SV = Valleynet.getData(var='Ua g/kg', From ='2014-09-05 00:00:00',To ='2015-04-12 00:00:00')-Slopenet.getData(var='Ua g/kg', From ='2014-09-05 00:00:00',To ='2015-04-12 00:00:00')
-DH_HM = Headnet.getData(var='Ua g/kg', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00')-Mouthnet.getData(var='Ua g/kg', From ='2015-03-12 00:00:00',To ='2015-04-12 00:00:00')
-DH_WE = Westnet.getData(var='Ua g/kg', From ='2014-09-05 00:00:00',To ='2015-04-12 00:00:00')-Eastnet.getData(var='Ua g/kg', From ='2014-09-05 00:00:00',To ='2015-04-12 00:00:00')
-
-DH_SV=DH_SV.resample("H",how='mean')
-DH_SV.index=DH_SV.index.hour
-DH_SV.columns=['DH_VS']
-
-DH_HM=DH_HM.resample("H",how='mean')
-DH_HM.index=DH_HM.index.hour
-DH_HM.columns=['DH_HM']
-
-DH_WE=DH_WE.resample("H",how='mean')
-DH_WE.index=DH_WE.index.hour
-DH_WE.columns=['DH_WE']
 
 
 
-DT_HM=DT_HM.resample("H",how='mean')
-DT_HM.index=DT_HM.index.hour
-DT_HM.columns=['DT_HM']
-
-
-DT_WE=DT_WE.resample("H",how='mean')
-DT_WE.index=DT_WE.index.hour
-DT_WE.columns=['DT_WE']
-
-DT_SV=DT_SV.resample("H",how='mean')
-DT_SV.index=DT_SV.index.hour
-DT_SV.columns=['DT_VS']
-
-matplotlib.rc('xtick', labelsize=20)
-matplotlib.rc('ytick', labelsize=20)
-
-plotclass([DT_SV,DT_WE,DT_HM]).tsplot(zero=True)
-#plotclass([DH_SV,DH_WE,DH_HM]).tsplot(zero=True)
-
-plt.show()
-
-plt.close()
 
 
 

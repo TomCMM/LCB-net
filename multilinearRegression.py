@@ -22,31 +22,21 @@ class FillGap():
     def __init__(self,network):
         self.network = network
         self.newdataframes = { } # contain the new dataframes
-#        self.__findpredictor(network)
-
-#     def __findpredictor(self,network):
-#         stations = self.network.getsta([], all=True, sorted='Lon')
-#         
-#         available = pd.DataFrame()
-#         for s in stations:
-#             print(s.getData(reindex = True).dropna(how='all').index)
-#             s.getData(reindex = True).dropna(how='all').index
-#             news = pd.DataFrame()
 
     def __getpredictors(self,staname):
         """
         DESCRIPTION
-            Return the stations object closest to the stations selected
+            Return a couple object closest to the stations selected
         INPUT
             Station name
         EXAMPLE
-            __getsta('C04')
+            __getpredictors('C04')
         """
-        stations = self.network.getsta([], all=True, sorted='Lon')
+
+        stations = self.network.getsta([], all=True, sorted='Lon')['stations']
         station = self.network.getsta(staname)
-        
         idx = stations.index(station[0])
-        
+
         left = stations[:idx-1]
         right = stations[idx+1:]
 
@@ -76,27 +66,31 @@ class FillGap():
         for i in rest:
             select .append(i)
 
-        print select
         return select
 
-    def fillstation(self, stations, all=None, plot = None, summary = None):
-
+    def fillstation(self, stanames, all=None, plot = None, summary = None):
+        """
+        DESCRIPTION
+            Check every variable of every stations and try to fill 
+            them with the variables of the two nearest station for every time. 
+        """
         if all == True:
             stations = self.network.getsta([], all=True).values()
+        else:
+            stations = self.network.getsta(stanames)
 
         for station in stations:
-            print('bite')
             newdataframe = station.getData(reindex = True) # Dataframe which stock the new data of the stations
-            print('chatte')
             newdataframe['U m/s'] = station.getvar('U m/s')
             newdataframe['V m/s'] = station.getvar('V m/s')
-            staname = station.getpara('staname')
+            staname = station.getpara('stanames')
             selections = self.__getpredictors(staname)
             variables = newdataframe.columns
-            
-            for selection in selections:
+            for i,selection in enumerate(selections):
+                print "="*20
+                print str(i), ' on ', str(len(selections)), ' completed'
+                print "="*20
                 for var in variables:
-                    print(var)
                     Y = station.getvar(var) # variable to be filled
                     X1 = selection[0].getvar(var) # stations variable used to fill
                     X2 = selection[1].getvar(var)# stations variable used to fill
@@ -116,10 +110,6 @@ class FillGap():
                     except KeyError:
                         print('Data not present in all station')
 
-            # Recalculate "Sm m/s" and "Dm G" with U and V
-            # speed,dir = cart2pol(-1,0)
-            # dir = -dir*(180/np.pi)+270
-            # print(dir)
             speed,dir = cart2pol(newdataframe['U m/s'],newdataframe['V m/s'])
             dir = -dir*(180/np.pi)+270
             newdataframe['Dm G'] = dir
@@ -183,12 +173,14 @@ if __name__=='__main__':
     AttSta.setInPaths(InPath)
     AttSta.showatt()
     
-    stanames = AttSta.stations(['Medio'])
+    stanames = AttSta.stations(['Head'])
     staPaths = AttSta.getatt(stanames , 'InPath')
     net.AddFilesSta(staPaths)
 
     gap = FillGap(net)
     gap.fillstation([], all = True, summary = True)
+
+
     gap.WriteDataFrames(OutPath)
 
 

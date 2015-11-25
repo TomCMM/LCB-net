@@ -1,6 +1,6 @@
 #===============================================================================
 # DESCRIPTION
-#    Simple plot of the overall Serie
+#    Simple plot of the overall Serie of the stations
 # INPUT
 #    InPath: Path of the WXT data
 #    OutPath: Path for the graphic Output
@@ -19,22 +19,23 @@ import LCBnet_lib
 from LCBnet_lib import *
 
 
-def TimeSeriePlot(self, Files, stations = None, network = None):
-    if stations == True:
+def TimeSeriePlot(Files, var = 'Ta C', OutPath = '/home/thomas/'):
+    
+    if not isinstance(var, list):
+        var = [var]
+
+    for v in var:
         for i in Files:
             sta=LCB_station(i)
-            print(sta.getpara('staname'))
-            plot=LCBplot(sta)
-            plot.setpara('OutPath',OutPath)
-            plot.TimePlot(['Ta C'])
-    if network == True:
-        
-        
+            sta.TimePlot(var = v)
+
+
 if __name__=='__main__':
-    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#     Path='/home/thomas/MergeDataThreeshold/'
     OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
-    TimeSeriePLot(Files, stations = True)
+    TimeSeriePlot(Files,var=['Ta C', 'Rc mm', "Pa H", "Sm m/s", "Ua g/kg"], OutPath = OutPath)
 
 
 

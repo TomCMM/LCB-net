@@ -1160,14 +1160,14 @@ for ini,end in zip(Init,End):
 #------------------------------------------------------------------------------ 
 # Select network stations
 PosSta=att_sta()
-Sorted=PosSta.sortsta(PosSta.stations(['Head']),'Lon')
-position=Sorted['position']
-staname=Sorted['staname']
+Sorted=PosSta.sortsta(PosSta.stations(['Medio']),'Lon')
+position=Sorted['metadata']
+staname=Sorted['stanames']
 nbsta=len(staname)
 
 #------------------------------------------------------------------------------ 
 # Select corresponding files
-InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+InPath='/home/thomas/MergeDataThreeshold/'
 out='/home/thomas/'
 
 # Find all the clima and Hydro
@@ -1186,8 +1186,8 @@ time=range(0,720,1)#
 Position, Time = np.meshgrid(position, time)
 Time=Time/30
 
-Init=pd.date_range('09/01/2014','07/01/2015', freq='D')# Month- Day - Years
-End=pd.date_range('09/01/2014 23:59:59','07/01/2015 23:59:59', freq='D')
+Init=pd.date_range('02/15/2015','09/01/2015', freq='D')# Month- Day - Years
+End=pd.date_range('02/15/2015 23:59:59','09/01/2015 23:59:59', freq='D')
 
 for ini,end in zip(Init,End):
     var=np.array([])
@@ -1195,7 +1195,6 @@ for ini,end in zip(Init,End):
     Wind_dir=np.array([])
     Norm=np.array([])
     Theta=np.array([])
-
     for rr in network:
         print(rr.getpara('InPath'))
         rr.setpara('From',ini)
@@ -1207,24 +1206,17 @@ for ini,end in zip(Init,End):
         var=np.append(var,variable.tolist())
         Norm=np.append(Norm,vel_10min.tolist())
         Theta=np.append(Theta,dir_10min.tolist())
-
     FIG=LCBplot(rr)
     plt.figure(figsize=(FIG.getpara('wfig'),FIG.getpara('hfig')))
     plt.suptitle(FIG.getpara('subtitle'),fontsize=20)
-    
     var=var.reshape(nbsta,720)
     V=np.cos(map(math.radians,Theta+180))*Norm# V AND U ARE WRONG BUT THEY ARE DISPLAY COORECTLY IN THE HOVERMOLLERRRRR !!!!!!!!
     U=np.sin(map(math.radians,Theta+180))*Norm# V AND U ARE WRONG BUT THEY ARE DISPLAY COORECTLY IN THE HOVERMOLLERRRRR !!!!!!!!
-
     U=U.reshape(nbsta,144)
     V=V.reshape(nbsta,144)
-    
     var=var.transpose()
     U=U.transpose()
     V=V.transpose()
-
-#  Interpolation
-
     newvar=np.array([[]])
     for i in np.arange(var.shape[0]):
         data=var[i,:]
@@ -1238,11 +1230,8 @@ for ini,end in zip(Init,End):
         except:
             print('Cant interpolate - Therfore let NAN data')
             newvar=np.append(newvar,data)
-    
     newvar=newvar.reshape(720,nbsta)
     var=newvar
-
-
     U.shape
     V.shape
     var.shape
@@ -1255,12 +1244,9 @@ for ini,end in zip(Init,End):
     plt.colorbar()
     a=plt.quiver(Position[::5,::],Time[::5,::],U[:,:],V[:,:],scale=35)
     #plt.gca().invert_xaxis()    
-
-
     l,r,b,t = plt.axis()
     dx, dy = r-l, t-b
     plt.axis([l-0.2*dx, r+0.2*dx, b-0*dy, t+0*dy])
-
     plt.savefig(str(out)+str(ini)+'-hovermoler.png')
     plt.close()
 
@@ -1401,18 +1387,10 @@ out='/home/thomas/'
 Files=glob.glob(InPath+"*")
 
 Files=[
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C09clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C08clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C07clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C06clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C05clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C04clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C10clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C11clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C12clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C13clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C14clear_merge.TXT',
-'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C15clear_merge.TXT'
+'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C16clear_merge.TXT',
+'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C17clear_merge.TXT',
+'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C18clear_merge.TXT',
+'/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/C19clear_merge.TXT'
  ]
 
 network=[]
@@ -1425,9 +1403,9 @@ for i in Files:
 
 # Select network stations
 PosSta=att_sta()
-Sorted=PosSta.sortsta(PosSta.stations(['Head']),'Lon')
-position=Sorted['position']
-staname=Sorted['staname']
+Sorted=PosSta.sortsta(PosSta.stations(['Medio']),'Lon')
+position=Sorted['metadata']
+staname=Sorted['stanames']
 nbsta=len(staname)
 
 
@@ -1445,9 +1423,9 @@ for ini,end in zip(Init,End):
     Wind_dir=np.array([])
     Norm=np.array([])
     Theta=np.array([])
-    #FIG=LCBplot()
-    plt.figure(figsize=(FIG.getpara('wfig'),FIG.getpara('hfig')))
-    plt.suptitle(FIG.getpara('subtitle'),fontsize=20)
+#     FIG=LCBplot()
+#     plt.figure(figsize=(FIG.getpara('wfig'),FIG.getpara('hfig')))
+#     plt.suptitle(FIG.getpara('subtitle'),fontsize=20)
     for rr in network:
         print(rr.getpara('InPath'))
         rr.setpara('From',ini)
@@ -1459,20 +1437,14 @@ for ini,end in zip(Init,End):
         var=np.append(var,variable.tolist())
         Norm=np.append(Norm,vel_10min.tolist())
         Theta=np.append(Theta,dir_10min.tolist())
-
-
     var=var.reshape(nbsta,720)
     V=np.cos(map(math.radians,Theta+180))*Norm# V AND U ARE WRONG BUT THEY ARE DISPLAY COORECTLY IN THE HOVERMOLLERRRRR !!!!!!!!
     U=np.sin(map(math.radians,Theta+180))*Norm# V AND U ARE WRONG BUT THEY ARE DISPLAY COORECTLY IN THE HOVERMOLLERRRRR !!!!!!!!
-
-
     U=U.reshape(nbsta,144)
     V=V.reshape(nbsta,144)
-
     var=var.transpose()
     U=U.transpose()
     V=V.transpose()
-
     U.shape
     V.shape
     var.shape
@@ -1485,16 +1457,11 @@ for ini,end in zip(Init,End):
     plt.colorbar()
     a=plt.quiver(Position[::5,::],Time[::5,::],U[:,:],V[:,:],scale=35)
     #plt.gca().invert_xaxis()    
-
-
     l,r,b,t = plt.axis()
     dx, dy = r-l, t-b
     plt.axis([l-0.2*dx, r+0.2*dx, b-0*dy, t+0*dy])
-
     plt.savefig(str(out)+str(ini)+'-hovermoler.png')
     plt.close()
-
-
     U.shape
     V.shape
     var.shape
@@ -1507,12 +1474,9 @@ for ini,end in zip(Init,End):
     plt.colorbar()
     a=plt.quiver(Position[::5,::],Time[::5,::],U[:,:],V[:,:],scale=35)
     #plt.gca().invert_xaxis()    
-
-
     l,r,b,t = plt.axis()
     dx, dy = r-l, t-b
     plt.axis([l-0.2*dx, r+0.2*dx, b-0*dy, t+0*dy])
-
     plt.savefig(str(out)+str(ini)+'-hovermoler.png')
     plt.close()
 

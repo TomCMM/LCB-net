@@ -713,8 +713,6 @@ plt.close()
 #===============================================================================
 # Channeling + cold pool strength
 #===============================================================================
-
-
 from __future__ import division
 import os
 import glob
@@ -1361,9 +1359,9 @@ for i in ILw_mean.index:
 	DI[i]=((ILw_mean[i] - Lw_ClearSky[(i.hour)]) / Lw_ClearSky[(i.hour)]) * 100
 
 
-
 Southfreq=np.bincount(Southwind[(DI < 2.5) & (DI > -2.5)].index.hour)/np.bincount(windsta9[DI[DI < 2.5].index & DI[DI > -2.5].index].index.hour)
 Northfreq=np.bincount(Northwind[(DI < 2.5) & (DI > -2.5)].index.hour)/np.bincount(windsta9[DI[DI < 2.5].index & DI[DI > -2.5].index].index.hour)
+
 
 plt.plot(Southfreq,'g-',label='South_-2.5_2.5')
 plt.plot(Northfreq,'g--',label='North_-2.5_2.5')
