@@ -353,6 +353,8 @@ class man(object):
                 data['hours'] = data.index.hour
                 data = pd.pivot_table(data, index = ['hours'], columns=['index'], values=var)
 
+#         data = data[From:To] # I should remove what is before
+
         if var == None:
             return data
         else:
@@ -438,6 +440,7 @@ class AttVar(object):
                      'Rc mm':{'longname':'Accumulated precipitation (mm)'},
                      'Ua %':{'longname':'Relative humidity (%)'},
                      'Ua g/kg':{'longname':'Specific humidity (g/kg)'},
+                     'Pa H':{'longname':'Pressure (H)'},
                      }
     def showatt(self):
         print(self._attname)
@@ -1030,17 +1033,21 @@ class LCB_net(LCB_station, man):
             plt.show()
         """
         nbsta = len(self.getpara('guys'))
+        
         stations = self.getpara('guys')
         
         df = pd.DataFrame()
         for sta in stations.keys():
-            index = stations[sta].Data.index
+            data = stations[sta].Data
+            print data
+            data = data.sum(axis=1)
+            data = data.dropna(axis=0)
+            index = data.index
             s = pd.Series([1]*len(index), index = index)
             ndf = pd.DataFrame(s,columns =[sta])
             df = df.join(ndf, how = 'outer')
     
         df['fraction'] = (df.sum(axis=1)/nbsta)*100
-        
         if plot == True:
             df['fraction'].plot()
             plt.show()

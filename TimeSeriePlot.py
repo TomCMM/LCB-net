@@ -20,12 +20,12 @@ from LCBnet_lib import *
 
 
 def TimeSeriePlot(Files, var = 'Ta C', OutPath = '/home/thomas/'):
-    
     if not isinstance(var, list):
         var = [var]
 
     for v in var:
         for i in Files:
+            print i
             sta=LCB_station(i)
             sta.TimePlot(var = v)
 
@@ -35,7 +35,7 @@ if __name__=='__main__':
 #     Path='/home/thomas/MergeDataThreeshold/'
     OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
-    TimeSeriePlot(Files,var=['Ta C', 'Rc mm', "Pa H", "Sm m/s", "Ua g/kg"], OutPath = OutPath)
+    TimeSeriePlot(Files,var=['Ua %'], OutPath = OutPath)
 
 
 

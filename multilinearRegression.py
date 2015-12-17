@@ -68,11 +68,14 @@ class FillGap():
 
         return select
 
-    def fillstation(self, stanames, all=None, plot = None, summary = None):
+    def fillstation(self, stanames, all=None, plot = None, summary = None, From=None, To=None):
         """
         DESCRIPTION
             Check every variable of every stations and try to fill 
-            them with the variables of the two nearest station for every time. 
+            them with the variables of the two nearest station for every time.
+        INPUT
+            From: From where to select the data
+            To: when is the ending
         """
         if all == True:
             stations = self.network.getsta([], all=True).values()
@@ -80,7 +83,10 @@ class FillGap():
             stations = self.network.getsta(stanames)
 
         for station in stations:
-            newdataframe = station.getData(reindex = True) # Dataframe which stock the new data of the stations
+            newdataframe = station.getData(reindex = True, From=From, To=To) # Dataframe which stock the new data of the stations
+            print "x"*80
+            print newdataframe.index
+            print "x"*80
             newdataframe['U m/s'] = station.getvar('U m/s')
             newdataframe['V m/s'] = station.getvar('V m/s')
             staname = station.getpara('stanames')
@@ -97,7 +103,7 @@ class FillGap():
 
                     try:
                         # get parameters
-                        data=pd.concat([Y, X1, X2],keys=['Y','X1','X2'],axis=1, join='inner').dropna()
+                        data=pd.concat([Y, X1, X2],keys=['Y','X1','X2'],axis=1, join='outer').dropna()
                         params = self.MLR(data[['X1','X2']], data['Y'], summary = summary)
         
                         # get new fitted data
@@ -111,13 +117,14 @@ class FillGap():
                         print('Data not present in all station')
 
             speed,dir = cart2pol(newdataframe['U m/s'],newdataframe['V m/s'])
-            dir = -dir*(180/np.pi)+270
+            dir = -dir*(180/np.pi)+180
             newdataframe['Dm G'] = dir
             newdataframe['Sm m/s'] = speed
 
             if plot == True:
                 df = pd.concat([Y,X1,X2,newdata,newdataframe[var] ], keys=['Y','X1','X2','estimated data','Estimated replaced'],axis=1, join='outer')
                 self.plotcomparison(df)
+
 
             self.newdataframes[staname] = newdataframe
 
@@ -177,11 +184,51 @@ if __name__=='__main__':
     staPaths = AttSta.getatt(stanames , 'InPath')
     net.AddFilesSta(staPaths)
 
+    From='2014-10-01 00:00:00' 
+    To='2015-11-01 00:00:00'
+    
     gap = FillGap(net)
-    gap.fillstation([], all = True, summary = True)
-
+    gap.fillstation([], all = True, From=From, To=To)
 
     gap.WriteDataFrames(OutPath)
+
+#===============================================================================
+# Clean Full
+#===============================================================================
+
+InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+
+
+Files=glob.glob(InPath+"*")
+
+#     threshold={
+#                 'Pa H':{'Min':850,'Max':920},
+#                 'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
+#                 'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
+#                 'Rc mm':{'Min':0,'Max':8},
+#                 'Sm m/s':{'Min':0,'Max':30},
+#                 'Dm G':{'Min':0,'Max':360},
+#                 'Bat mV':{'Min':0.0001,'Max':10000},
+#                 'Vs V':{'Min':9,'Max':9.40}}
+
+for f in Files:
+    print f
+    if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT":
+        df = pd.read_csv(f, sep=',', index_col=0,parse_dates=True)
+        print df
+        df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
+        df['Ta C'] = df['Ta C'].fillna(method='pad')
+        df['Ua %'][(df['Ua %']<=0) | (df['Ua %']>=100) ] = np.nan
+        df['Ua %'] = df['Ua %'].fillna(method='pad')
+        df.to_csv(f)
+    if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C10.TXT":
+        print "allo"
+        df = pd.read_csv(f, sep=',', index_col=0, parse_dates=True)
+        df['Ta C'][(df['Ta C']<0) | (df['Ta C']>36) ] = np.nan
+        df['Ua %'][(df['Ua %']<0) | (df['Ua %']>100) ] = np.nan
+        df['Ua %'] = df['Ua %'].fillna(method='pad')
+        df.to_csv(f)
 
 
 

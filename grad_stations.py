@@ -124,6 +124,7 @@ class Gradient():
         for from_ , to_ in zip(From, To):
             for couple_name in couples_name:
                 new_couple_name =couple_name+str(from_)
+                print couples_net
                 net1 = couples_net[couple_name][0]
                 net2 = couples_net[couple_name][1]
     
@@ -134,7 +135,7 @@ class Gradient():
                 new_couples_name.append(new_couple_name)
                 couples_grad[new_couple_name] = net1.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter) - net2.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter)
     
-        self.couples_name = new_couples_name
+        self.new_couples_name = new_couples_name
         if return_:
             return couples_grad
         else:
@@ -160,7 +161,8 @@ class Gradient():
         else:
             colors = ['b', 'g', 'r','b', 'g', 'r']
         linestyles = ['-', '-', '-','--', '--', '--']
-        for couple, c, l in zip(self.couples_name, colors, linestyles):
+        for couple, c, l in zip(self.new_couples_name, colors, linestyles):
+            print couples_grad
             serie = couples_grad[couple]
             name = couple
             df = self.ClassPeriod(serie)
@@ -188,35 +190,35 @@ if __name__=='__main__':
 # Quartiles
 #===============================================================================
     grad = Gradient(dir_inpath)
-    grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
+#     grad.couples_net([['West', 'East'],['valley','slope'],['Medio', 'Head', 'valley']])
 #     grad.grad(var=['Ta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00')
 #     grad.tsplot(zero=True, outpath=outpath)
-# 
+# # 
 #     grad.grad(var=['Ua g/kg'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
 #     grad.tsplot(zero=True, outpath=outpath)
-  
-    grad.grad(var=['Sm m/s'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
-    grad.tsplot(zero=True, outpath=outpath)
-#  
+#   
+#     grad.grad(var=['Sm m/s'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
+#     grad.tsplot(zero=True, outpath=outpath)
+# #  
 #     grad.grad(var=['Theta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
 #     grad.tsplot(zero=True, outpath=outpath)
 
 #===============================================================================
 # Difference Summer Winter
 #===============================================================================
-#     grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
-    
-#     grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
-#   
-#     grad.grad(var=['Ua g/kg'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
-#  
-#     grad.grad(var=['Sm m/s'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
-#     
-#     grad.grad(var=['Theta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-#     grad.tsplot(zero=True, outpath=outpath, quartile=False)
+    grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
+
+    grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+    grad.tsplot(zero=True, outpath=outpath, quartile=False)
+   
+    grad.grad(var=['Ua g/kg'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+    grad.tsplot(zero=True, outpath=outpath, quartile=False)
+  
+    grad.grad(var=['Sm m/s'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+    grad.tsplot(zero=True, outpath=outpath, quartile=False)
+     
+    grad.grad(var=['Theta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
+    grad.tsplot(zero=True, outpath=outpath, quartile=False)
 
 
 

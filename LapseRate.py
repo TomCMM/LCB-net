@@ -124,7 +124,7 @@ class AltitudeAnalysis():
             for staname in self.stas_by_elev:
                 station= self.net.getsta([staname])[0]
                 if desvio_sta9:
-                    sta9 = self.net.getsta(['C15'])[0]
+                    sta9 = self.net.getsta(['C09'])[0]
                 if every:
                     dataframe  = station.getData(var=var, by=by, every=every, From=From, To=To)
                     if desvio_padrao:
@@ -296,7 +296,7 @@ class AltitudeAnalysis():
                     else:
                         plt.show()
 
-    def Lapserate(self, var = 'Ta C', return_=False):
+    def Lapserate(self, var = 'Ta C', return_=False, outpath=None):
         """
         Plot lapserate of a variable
         """
@@ -316,11 +316,15 @@ class AltitudeAnalysis():
                 lr.append(est.params[1])
             
             plt.plot(hours,lr,'o')
-        
-        plt.show()
+        if not outpath:
+            plt.show()
+        else:
+            plt.savefig(outpath+"lapserate.png")
+
         return np.array(lr).mean()
 
-    def Lapserate_boxplot(self, var = 'Ta C', how = 'mean'):
+
+    def Lapserate_boxplot(self, var = 'Ta C', how = 'mean', outpath=None):
         """
         Box plot monthly lapse rate
         """
@@ -330,6 +334,7 @@ class AltitudeAnalysis():
             df = pd.DataFrame()
             elev = [ ]
             for staname in self.net.getsta([],all = True, sorted = 'Altitude').keys():
+                print staname
                 elev.append(self.attsta.getatt(staname,'Altitude'))
                 station= self.net.getsta([staname])[0]
                 s = pd.Series(station.getData(var = "Ta C", by = 'D', how = how),name = staname)
@@ -341,7 +346,10 @@ class AltitudeAnalysis():
         LR_month['Months']= LR_month.index.month
 
         LR_month.boxplot(by='Months')
-        plt.show()
+        if not outpath:
+            plt.show()
+        else:
+            plt.savefig(outpath+"lapserate.png")
 
     def __f(self,x):
         elev = self.elev
@@ -546,12 +554,12 @@ if __name__=='__main__':
     AttSta.setInPaths(dirInPath)
     
     
-    station_names =AttSta.stations(['Head'])
+    station_names =AttSta.stations(['Head','West','valley'])
 #     station_names.append('C17')
 
 
     Files =AttSta.getatt(station_names,'InPath')
-#     Files = Files + AttSta.getatt(AttSta.stations(['Medio','East']),'InPath')
+    Files = Files + AttSta.getatt(AttSta.stations(['Head','West','slope']),'InPath')
     
     altanal = AltitudeAnalysis(Files)
 
@@ -559,10 +567,10 @@ if __name__=='__main__':
     # Plot var in function of Altitude
     #===========================================================================
 
-    hours = np.arange(15,24,1)
-    hours = [16, 18, 20,22,0,2, 4]
-    altanal.VarVsAlt(vars= ['Ta C'], by= 'H',  dates = hours, From='2015-03-01 00:00:00', To='2015-08-01 00:00:00')
-    altanal.plot(analysis = 'var_vs_alt', marker_side = True, annotate = True, print_= True)
+#     hours = np.arange(15,24,1)
+#     hours = [16, 18, 20,22,0,2, 4]
+#     altanal.VarVsAlt(vars= ['Ta C'], by= 'H',  dates = hours, From='2015-03-01 00:00:00', To='2015-08-01 00:00:00')
+#     altanal.plot(analysis = 'var_vs_alt', marker_side = True, annotate = True, print_= True)
 
     #===========================================================================
     # Plot var in function of Altitude - Mean summer and Winter
@@ -582,10 +590,10 @@ if __name__=='__main__':
 
 
     #===========================================================================
-    # Box plot
+    # Box plot lapserate
     #===========================================================================
-#     altanal.Lapserate(var='Sm m/s')
-    #Altanal.Lapserate_boxplot()
+    altanal.Lapserate(var='Ta C', outpath='Z_article')
+#     altanal.Lapserate_boxplot()
 
     #===========================================================================
     # PBL HEIGHT
@@ -601,11 +609,13 @@ if __name__=='__main__':
     #Plot "trajectories"
     #===========================================================================
 
-#     hours = [12]
-#     varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C', 'Sm m/s'], desvio_sta9=True, by= 'H',every='D',dates=hours, From='2015-05-01 00:00:00', To='2015-08-01 00:00:00', return_data=True)
-#     varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C', 'Sm m/s'], desvio_sta9=True, by= 'H',every='D',dates=hours, From='2014-11-01 00:00:00', To='2015-05-01 00:00:00', return_data=True)
-# 
-#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_summer, varvsalt_winter], print_= True, desvio_padrao=True, join= True, plot_mean_profile=True)
+#     hours = [4]
+#     varvsalt_winter = altanal.VarVsAlt(vars= [ 'Pa H'], desvio_sta9=True, by= 'H',
+#                                        every='D',dates=hours, From='2015-05-01 00:00:00', To='2015-08-01 00:00:00', return_data=True)
+#     varvsalt_summer = altanal.VarVsAlt(vars= ['Pa H'], desvio_sta9=True, by= 'H',
+#                                        every='D',dates=hours, From='2014-11-01 00:00:00', To='2015-05-01 00:00:00', return_data=True)
+#  
+#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer], print_= True, desvio_padrao=True, join= True, plot_mean_profile=True)
 
 
 

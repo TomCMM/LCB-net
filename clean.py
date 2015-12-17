@@ -25,7 +25,7 @@ class ManageDataLCB(object):
         2) Clean the file and Merge them into a new dataframe
     """
 
-    def __init__(self,InPath,fname,staname):
+    def __init__(self,InPath,fname,staname=None):
         """Take The Path and the filname of the raw files folder 
         
         NOTE:
@@ -42,13 +42,17 @@ class ManageDataLCB(object):
         self.NbLineHeader = 2
         self.threshold={
                         'Pa H':{'Min':850,'Max':920},
-                        'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
+                        'Ta C':{'Min':5,'Max':40,'gradient_2min':4},#
                         'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
                         'Rc mm':{'Min':0,'Max':8},
                         'Sm m/s':{'Min':0,'Max':30},
                         'Dm G':{'Min':0,'Max':360},
                         'Bat mV':{'Min':0.0001,'Max':10000},
-                         'Vs V':{'Min':9,'Max':9.40}#'Vs V':{'Min':8.5,'Max':9.5}
+                        'Vs V':{'Min':9,'Max':9.40}#'Vs V':{'Min':8.5,'Max':9.5}
+
+                         
+                         
+                         
                         }
         self.__read(InPath,fname)
         self.Header()
@@ -145,6 +149,7 @@ class ManageDataLCB(object):
                 del content_clear[1]
                 content_clear.insert(1,self.Header(type=1))
 
+
     def write_clean(self,OutPath,fname):
         """
         DESCRIPTION
@@ -188,9 +193,11 @@ class ManageDataLCB(object):
         """
         dataframe = self.Dataframe
         
+
         self.old_dataframe = self.Dataframe.copy()
         print('0'*80)
         dataframe = dataframe.drop_duplicates()
+
 
         if specific:
             dataframe = self._specific_clean(dataframe)
@@ -199,17 +206,22 @@ class ManageDataLCB(object):
             print'Apply threeshold filter'
             dataframe = self._threshold(dataframe)
 
+
         dataframe = dataframe.convert_objects(convert_numeric=True) # convert the data frame into numeric if not put nan
         # remove null colomns (e.g. Unnamed)
         dataframe = dataframe.dropna(axis = 1, how ='all')
+
 
         
         if reindex:
             dataframe = self._reindex(dataframe)
 
+
         if gradient:
             dataframe = self._grad_threshold(dataframe,'Ta C')
             dataframe = self._grad_threshold(dataframe,'Ua %')
+
+        
         self.Dataframe = dataframe
         print('0'*80)
 
@@ -239,7 +251,7 @@ class ManageDataLCB(object):
         dataframe = dataframe.reindex(index=idx)
         return dataframe
 
-    def comparison_clean(self,vars = None, just_clean = False, subplot = False, outpath='/home/thomas/',staname = None):
+    def comparison_clean(self,vars = None, just_clean = False, subplot = False, outpath='/home/thomas/',staname = None, From=None, To=None):
         """
         DESCRIPTION
             Plot time serie before and after the data cleaned
@@ -248,6 +260,11 @@ class ManageDataLCB(object):
         """
         old_dataframe = self.old_dataframe 
         dataframe = self.Dataframe
+        
+        if From:
+            old_dataframe = old_dataframe[From:To]
+            dataframe = dataframe[From:To]
+        
         
         if vars == None:
             vars = dataframe.columns
@@ -308,6 +325,10 @@ class ManageDataLCB(object):
             if (staname == "C04" and var == "Rc mm"):
                 newdataframe = self._specific_threshold(newdataframe, var, var2 = 'Ua %')
 
+            if (staname == "C15" and var == "Ta C"):
+                threshold = {"Vs V":{'Min':9.1,'Max':9.40}}
+                newdataframe = self._specific_threshold(newdataframe, var, var2 = 'Vs V', threshold=threshold)
+
             if (staname == "C05" and var == "Pa H")\
                    or (staname == "C05" and var == "Ua %")\
                    or (staname == "C05" and var == "Rc mm")\
@@ -317,6 +338,9 @@ class ManageDataLCB(object):
                    or (staname == "C09" and var == "Ua %")\
                    or (staname == "C04" and var == "Ua %")\
                    or (staname == "C04" and var == "Pa H")\
+                   or (staname == "C18" and var == "Pa H")\
+                   or (staname == "C18" and var == "Ua %")\
+                   or (staname == "C18" and var == "Rc mm")\
                    or (staname == "C09" and var == "Pa H"):
                 print "specific threshold"
                 
@@ -333,18 +357,22 @@ class ManageDataLCB(object):
 
         return newdataframe 
 
-    def _specific_threshold(self,df,var, var2 = None):
+    def _specific_threshold(self,df,var, var2 = None, threshold=None):
         """
         DESCRIPTION
             do a specific threshold which will only remove a variable and
             not the entire column
         INPUT
             var2 = True, use var1 to clean var2
+            Threshold= None, use the by default threeshold
         """
         print "-> Specific threshold"
-        threshold = self.threshold
+        
+        if not threshold:
+            threshold = self.threshold
         
         if not var2:
+            print "allo"
             df[var][(df[var]<threshold[var]['Min']) | (df[var]>threshold[var]['Max']) ] = np.nan
         else:
             print "cross variable filtering"
@@ -468,8 +496,8 @@ class ManageDataLCB(object):
 #====== User Input
 
 if __name__=='__main__':
-#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20150905/Extrema20150905'
-#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20150905/Clean/'
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20151116/Extrema20151116'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20151116/Clean/'
 #     #====== Find all the clima and Hydro
 #     Files=glob.glob(InPath+"/*/*")
 #     print(Files)
@@ -486,36 +514,41 @@ if __name__=='__main__':
 #===============================================================================
 # Merge the clean files
 #===============================================================================
-    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
-    # OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
-    OutPath='/home/thomas/'
-     
-    if not os.path.exists(OutPath):
-        os.makedirs(OutPath)
-     
-    AttSta=att_sta()
-    stations=AttSta.stations(['Ribeirao'])
-    for sta in stations:
-        # Permit to find all the find with the extension .TXTclear
-        print(sta)
-        matches = []
-        datamerge=None
-        for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
-            for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
-                matches.append(os.path.join(root, filename))    
-        for i in matches:
-            print(i)
-            data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i),sta)
-            try:
-                datamerge.append_dataframe(data)
-            except:
-                datamerge=data
-        datamerge.clean_dataframe()
-        datamerge.comparison_clean(vars=['Vs V','Ta C','Sm m/s','Ua %', 'Pa H', 'Rc mm','Bat mV'], staname=sta)
-        datamerge.write_dataframe(OutPath,sta+'clear_merge.TXT')
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+# #     OutPath='/home/thomas/'
+# #     
+# #     From='2015-05-01 00:00:00' 
+# #     To='2015-08-01 00:00:00'
+#     
+#     if not os.path.exists(OutPath):
+#         os.makedirs(OutPath)
+#       
+#     AttSta=att_sta()
+#     stations=AttSta.stations(['Ribeirao'])
+# #     stations = ['C18']
+#     for sta in stations:
+#         # Permit to find all the find with the extension .TXTclear
+#         print(sta)
+#         matches = []
+#         datamerge=None
+#         for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
+#             for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
+#                 matches.append(os.path.join(root, filename))    
+#         for i in matches:
+#             print(i)
+#             data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i),sta)
+#             try:
+#                 datamerge.append_dataframe(data)
+#             except:
+#                 datamerge=data
+#         datamerge.clean_dataframe()
+#         datamerge.comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
+#         datamerge.write_dataframe(OutPath,sta+'clear_merge.TXT')
 
 
 
 
-
+    
+    
 

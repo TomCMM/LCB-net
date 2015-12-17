@@ -23,6 +23,8 @@ if __name__=='__main__':
     net.AddFilesSta(Files)
     
     df= net.validfraction()
+    From='2014-10-01 00:00:00' 
+    To='2015-11-01 00:00:00'
+    df =df[From:To]
     df['fraction'].resample('M').plot(kind='bar')
     plt.show()
-
