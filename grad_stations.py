@@ -32,6 +32,8 @@ class Gradient():
     """
     def __init__(self, dirInPath):
         self.AttSta = att_sta()
+        
+        
         self.AttSta.setInPaths(dirInPath)
 
     def couples_net(self, couples_name):
@@ -96,13 +98,14 @@ class Gradient():
         column = serie.columns
         serie.index = serie.index.hour
         serie.columns = column
-        for col in range(1,24):
+        
+        for col in range(0,24):
             subdata=serie[serie.index == col]
             subserie = pd.DataFrame(np.array(subdata),index=range(len(subdata.index)),columns=[col])
             newdf = newdf.join(subserie,how='outer')
         return newdf
 
-    def grad(self, rainfilter = False, var = 'Ta C', by= None, From = None, To = None, group=None, how=None, return_=None):
+    def grad(self, rainfilter = False, var = 'Ta C', by= None, From = None, To = None, From2=None,To2=None, group=None, how=None, return_=None):
         """
         DESCRITPION
             give the difference between a station and another
@@ -121,7 +124,7 @@ class Gradient():
             To = [To]
 
         new_couples_name = []
-        for from_ , to_ in zip(From, To):
+        for from_ , to_, From2_,To2_ in zip(From, To, From2,To2):
             for couple_name in couples_name:
                 new_couple_name =couple_name+str(from_)
                 print couples_net
@@ -133,7 +136,7 @@ class Gradient():
                 if not To:
                     To = net1.getpara('To')
                 new_couples_name.append(new_couple_name)
-                couples_grad[new_couple_name] = net1.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter) - net2.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter)
+                couples_grad[new_couple_name] = net1.getData(var=var, From= from_, To=to_,From2=From2_,To2=To2_, by= by, how=how, group=group, rainfilter=rainfilter) - net2.getData(var=var, From= from_, To=to_, by= by, how=how, group=group, rainfilter=rainfilter)
     
         self.new_couples_name = new_couples_name
         if return_:
@@ -153,72 +156,108 @@ class Gradient():
         except AttributeError:
             print("Need to run the method grad before to run this one")
 
-        fig, ax = plt.subplots()
+        lcbplot = LCBplot() # get the plot object
+        argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+        arglabel = lcbplot.getarg('label')
+        argticks = lcbplot.getarg('ticks')
+        argfig = lcbplot.getarg('figure')
+        arglegend = lcbplot.getarg('legend')
+        
+        plt.close()
+        fig = plt.figure(**argfig)
+
+        
         if grey == True:
             colors=list()
             for i in np.arange(1,0,-0.2):
                 colors.append(plt.cm.Greys(i))
         else:
-            colors = ['b', 'g', 'r','b', 'g', 'r']
-        linestyles = ['-', '-', '-','--', '--', '--']
+            colors = ['r', 'r', 'r','b', 'b', 'b']
+        linestyles = ['-', '--', ':','-', '--', ':']
         for couple, c, l in zip(self.new_couples_name, colors, linestyles):
             print couples_grad
             serie = couples_grad[couple]
+            print serie
             name = couple
             df = self.ClassPeriod(serie)
-            median = df.quantile(q=0.5,axis=0)
+#             median = df.quantile(q=0.5,axis=0)
+            mean = df.mean(axis=0)
             if quartile:
                 quartile1 = df.quantile(q=0.25,axis=0)
                 quartile3 = df.quantile(q=0.75,axis=0)
-                ax.fill_between(quartile1.index.values, quartile1.values, quartile3.values, alpha=0.3,color=c)
+                plt.fill_between(quartile1.index.values, quartile1.values, quartile3.values, alpha=0.3,color=c)
 
-            ax.plot(median.index.values, median.values, linestyle=l, color=c, alpha=0.8, label=name)
-        legend = ax.legend(loc='upper left', shadow=True)
+            print mean.index
+            if l ==':':
+                plt.plot(mean.index.values, mean.values, linestyle=l, color=c, alpha=0.8, label=name,linewidth=8, dashes=(8, 15))
+            else:
+                plt.plot(mean.index.values, mean.values, linestyle=l, color=c, alpha=0.8, label=name,linewidth=10)
+        plt.xticks(range(0,24,6), **arglabel)
+        plt.xlim([0,24])
+        legend = plt.legend(loc='best',prop={'size':15})
+        plt.xticks(**arglabel)
+        plt.yticks(**arglabel)
+        plt.xlabel('hours (h)', **arglabel)
+        plt.ylabel('Difference', **arglabel)
+        plt.grid(True)
         if zero:
-            plt.axhline(0,color='black',alpha=0.2)
+            plt.axhline(0,color='black',alpha=0.2,linewidth=8 )
         if outpath:
             print "PLOTTED"
-            plt.savefig(outpath+ str(serie.columns[0][0:2])+ "_gradient.png")
+            plt.savefig(outpath+ str(serie.columns[0][0:2])+ "_gradient.svg")
+        else:
+            plt.show()
 
 
 
 if __name__=='__main__':
     dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-    outpath = '/home/thomas/Z_article/'
+    
+    outpath = '/home/thomas/'
 
-#===============================================================================
-# Quartiles
-#===============================================================================
+# # test only West or only East
+#     net_West = LCB_net()
+#     net_East = LCB_net()
+#     
+#     
+#     files_west = AttSta.getatt(AttSta.stations(['Head','West','valley']),'InPath')
+
+
+
+# #===============================================================================
+# # Quartiles
+# #===============================================================================
     grad = Gradient(dir_inpath)
 #     grad.couples_net([['West', 'East'],['valley','slope'],['Medio', 'Head', 'valley']])
-#     grad.grad(var=['Ta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00')
-#     grad.tsplot(zero=True, outpath=outpath)
+#     grad.grad(var=['Ta C'], by = "H", From ='2014-11-01 00:00:00', To = '2015-11-01 00:00:00')
+#     grad.tsplot(zero=True)
 # # 
-#     grad.grad(var=['Ua g/kg'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
-#     grad.tsplot(zero=True, outpath=outpath)
-#   
-#     grad.grad(var=['Sm m/s'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
-#     grad.tsplot(zero=True, outpath=outpath)
+#     grad.grad(var=['Ua g/kg'], by = "H", From ='2014-11-01 00:00:00', To = '2015-11-01 00:00:00' )
+#     grad.tsplot(zero=True)
+#    
+#     grad.grad(var=['Sm m/s'], by = "H", From ='2014-11-01 00:00:00', To = '2015-11-01 00:00:00' )
+#     grad.tsplot(zero=True)
 # #  
-#     grad.grad(var=['Theta C'], by = "H", From ='2014-10-15 00:00:00', To = '2015-07-01 00:00:00' )
-#     grad.tsplot(zero=True, outpath=outpath)
+#     grad.grad(var=['Theta C'], by = "H", From ='2014-11-01 00:00:00', To = '2015-11-01 00:00:00' )
+#     grad.tsplot(zero=True)
 
 #===============================================================================
 # Difference Summer Winter
 #===============================================================================
-    grad.couples_net([['West', 'East','slope'],['valley','slope'],['Medio', 'Head', 'valley']])
+    grad.couples_net([['valley', 'slope'], ['West', 'East'],['Medio','Head','valley']])
+#     grad.couples_net([['valley', 'slope'], ['West', 'East']])
+ 
+ 
+ 
+    grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-04-01 00:00:00'], 
+              To = ['2015-04-01 00:00:00','2015-10-01 00:00:00'], From2=['2015-10-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
+    grad.tsplot(zero=True, quartile=False, outpath="/home/thomas/")
+      
+    grad.grad(var=['Ua g/kg'], by = "H", From = ['2014-11-01 00:00:00','2015-04-01 00:00:00'],
+               To = ['2015-04-01 00:00:00','2015-10-01 00:00:00'], From2=['2015-10-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
+    grad.tsplot(zero=True, quartile=False, outpath="/home/thomas/")
 
-    grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-    grad.tsplot(zero=True, outpath=outpath, quartile=False)
-   
-    grad.grad(var=['Ua g/kg'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-    grad.tsplot(zero=True, outpath=outpath, quartile=False)
-  
-    grad.grad(var=['Sm m/s'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-    grad.tsplot(zero=True, outpath=outpath, quartile=False)
-     
-    grad.grad(var=['Theta C'], by = "H", From =['2014-11-01 00:00:00','2015-05-01 00:00:00'], To = ['2015-05-01 00:00:00','2015-10-01 00:00:00'])
-    grad.tsplot(zero=True, outpath=outpath, quartile=False)
+
 
 
 

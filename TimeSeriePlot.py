@@ -35,8 +35,8 @@ if __name__=='__main__':
 #     Path='/home/thomas/MergeDataThreeshold/'
     OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
-    TimeSeriePlot(Files,var=['Ua %'], OutPath = OutPath)
-
+    TimeSeriePlot(Files,var=[ 'Ta C'], OutPath = OutPath)
+ 
 
 
 

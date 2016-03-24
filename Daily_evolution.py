@@ -1,7 +1,7 @@
 #===============================================================================
 # DESCRIPTION
 #    plot the daily evolution of the variable in the Ribeirao Das Posses
-#    Plot used in the artic
+#    Plot used in the article
 #===============================================================================
 from LCBnet_lib import *
 
@@ -16,5 +16,10 @@ if __name__ == "__main__":
     
     From = ["2014-11-01 00:00:00","2015-04-01 00:00:00" ]
     To = ["2015-04-01 00:00:00 ","2015-10-01 00:00:00 "]
+    
+    From2 = ["2015-10-01 00:00:00 ",None]
+    To2 = ["2016-01-01 00:00:00 ",None]
 
-    net.dailyplot(var = ['Ta C', 'Ua g/kg', 'Rc mm'], From=From, To=To, group= "H", labels =['Summer', 'Winter'] , save = True)
+
+    net.dailyplot(var = ['Ta C', 'Ua g/kg'], From=From, To=To, From2 = From2, To2=To2, group= "H", labels =['Summer', 'Winter'] , save = True)
+    net.dailyplot(var = ['Rc mm'],how='sum', From=From, To=To, From2 = From2, To2=To2, group= "H", labels =['Summer', 'Winter'] , save = True)

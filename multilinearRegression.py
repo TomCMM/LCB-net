@@ -89,6 +89,9 @@ class FillGap():
             print "x"*80
             newdataframe['U m/s'] = station.getvar('U m/s')
             newdataframe['V m/s'] = station.getvar('V m/s')
+            newdataframe['Ua g/kg'] = station.getvar('Ua g/kg')
+            newdataframe['Theta C'] = station.getvar('Theta C')
+
             staname = station.getpara('stanames')
             selections = self.__getpredictors(staname)
             variables = newdataframe.columns
@@ -115,9 +118,10 @@ class FillGap():
                         newdataframe[var][idxmissing] = newdata[idxmissing] # Fill the missing data with the estimated serie
                     except KeyError:
                         print('Data not present in all station')
+                    except ValueError:
+                        print('The variable '+var+ "Does not exist to do the multilinear regression ")
 
             speed,dir = cart2pol(newdataframe['U m/s'],newdataframe['V m/s'])
-            dir = -dir*(180/np.pi)+180
             newdataframe['Dm G'] = dir
             newdataframe['Sm m/s'] = speed
 
@@ -171,64 +175,72 @@ class FillGap():
 
 
 if __name__=='__main__':
-    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
-    OutPath= '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-    Files=glob.glob(InPath+"*")
-    
-    net=LCB_net()
-    AttSta = att_sta()
-    AttSta.setInPaths(InPath)
-    AttSta.showatt()
-    
-    stanames = AttSta.stations(['Head'])
-    staPaths = AttSta.getatt(stanames , 'InPath')
-    net.AddFilesSta(staPaths)
-
-    From='2014-10-01 00:00:00' 
-    To='2015-11-01 00:00:00'
-    
-    gap = FillGap(net)
-    gap.fillstation([], all = True, From=From, To=To)
-
-    gap.WriteDataFrames(OutPath)
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+#     OutPath= '/home/thomas/PhD/obs-lcb/LCBData/obs/Full_medio/'
+#     Files=glob.glob(InPath+"*")
+#     
+#     net=LCB_net()
+#     AttSta = att_sta()
+#     AttSta.setInPaths(InPath)
+#     AttSta.showatt()
+#     
+#     stanames = AttSta.stations(['Medio'])
+#     stanames = stanames +['C12']
+#     
+#     
+# 
+#     staPaths = AttSta.getatt(stanames , 'InPath')
+#     net.AddFilesSta(staPaths)
+# 
+#     # Middle
+#     From='2015-03-15 00:00:00' 
+#     To='2016-02-18 00:00:00'
+#     #Head
+# #     From='2014-10-01 00:00:00' 
+# #     To='2016-01-01 00:00:00'
+#     
+#     gap = FillGap(net)
+#     gap.fillstation([], all = True, From=From, To=To)
+# 
+#     gap.WriteDataFrames(OutPath)
 
 #===============================================================================
 # Clean Full
 #===============================================================================
 
-InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-
-
-Files=glob.glob(InPath+"*")
-
-#     threshold={
-#                 'Pa H':{'Min':850,'Max':920},
-#                 'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
-#                 'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
-#                 'Rc mm':{'Min':0,'Max':8},
-#                 'Sm m/s':{'Min':0,'Max':30},
-#                 'Dm G':{'Min':0,'Max':360},
-#                 'Bat mV':{'Min':0.0001,'Max':10000},
-#                 'Vs V':{'Min':9,'Max':9.40}}
-
-for f in Files:
-    print f
-    if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT":
-        df = pd.read_csv(f, sep=',', index_col=0,parse_dates=True)
-        print df
-        df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
-        df['Ta C'] = df['Ta C'].fillna(method='pad')
-        df['Ua %'][(df['Ua %']<=0) | (df['Ua %']>=100) ] = np.nan
-        df['Ua %'] = df['Ua %'].fillna(method='pad')
-        df.to_csv(f)
-    if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C10.TXT":
-        print "allo"
-        df = pd.read_csv(f, sep=',', index_col=0, parse_dates=True)
-        df['Ta C'][(df['Ta C']<0) | (df['Ta C']>36) ] = np.nan
-        df['Ua %'][(df['Ua %']<0) | (df['Ua %']>100) ] = np.nan
-        df['Ua %'] = df['Ua %'].fillna(method='pad')
-        df.to_csv(f)
+    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+    OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+     
+     
+    Files=glob.glob(InPath+"*")
+     
+    #     threshold={
+    #                 'Pa H':{'Min':850,'Max':920},
+    #                 'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
+    #                 'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
+    #                 'Rc mm':{'Min':0,'Max':8},
+    #                 'Sm m/s':{'Min':0,'Max':30},
+    #                 'Dm G':{'Min':0,'Max':360},
+    #                 'Bat mV':{'Min':0.0001,'Max':10000},
+    #                 'Vs V':{'Min':9,'Max':9.40}}
+     
+    for f in Files:
+        print f
+        if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT":
+            df = pd.read_csv(f, sep=',', index_col=0,parse_dates=True)
+            print df
+            df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
+            df['Ta C'] = df['Ta C'].fillna(method='pad')
+            df['Ua %'][(df['Ua %']<=0) | (df['Ua %']>=100) ] = np.nan
+            df['Ua %'] = df['Ua %'].fillna(method='pad')
+            df.to_csv(f)
+        if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C10.TXT":
+            print "allo"
+            df = pd.read_csv(f, sep=',', index_col=0, parse_dates=True)
+            df['Ta C'][(df['Ta C']<0) | (df['Ta C']>36) ] = np.nan
+            df['Ua %'][(df['Ua %']<0) | (df['Ua %']>100) ] = np.nan
+            df['Ua %'] = df['Ua %'].fillna(method='pad')
+            df.to_csv(f)
 
 
 

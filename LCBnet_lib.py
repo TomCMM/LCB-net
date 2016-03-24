@@ -1,3 +1,8 @@
+#===============================================================================
+# For the math/tex font be the same than matplotlib
+#===============================================================================
+
+
 from __future__ import division
 import math
 import numpy as np
@@ -12,18 +17,26 @@ import matplotlib.pyplot as plt
 import fnmatch
 import copy
 from scipy import interpolate
-import seaborn as sns
 from scipy import stats
 import datetime
 from geopy.distance import vincenty
 
 
-def PolarToCartesian(norm,theta):
+
+def PolarToCartesian(norm,theta, rot=None):
     """
     Transform polar to Cartesian where 0 = North, East =90 ....
+    From where the wind is blowing !!!!!
+    
+    ARG:
+        rot: Rotate the axis of an angle in degree
     """
-    U=norm*np.cos(map(math.radians,-theta+270))
-    V=norm*np.sin(map(math.radians,-theta+270))
+    if not rot:
+        U=norm*np.cos(map(math.radians,-theta+270))
+        V=norm*np.sin(map(math.radians,-theta+270))
+    else:
+        U=norm*np.cos(map(math.radians,-theta+270+rot))
+        V=norm*np.sin(map(math.radians,-theta+270+rot))
     return U,V
 
 
@@ -103,10 +116,16 @@ def merge_dicts(*dict_args):
     return result
 
 
-def cart2pol(x, y):
-    rho = np.sqrt(x**2 + y**2)
-    phi = np.arctan2(y, x)
-    return rho, phi
+def cart2pol(u, v):
+    """
+    From where the wind is blowing !!!!!
+    """
+    rho = np.sqrt(u**2 + v**2)
+    theta = np.arctan2(-v,-u)*(180/np.pi)
+    theta[theta < 0 ] = theta[theta < 0 ]+360
+    theta = (360 - theta) +90
+    theta[(theta <= 450) & (theta >360) ] = theta[(theta <= 450) & (theta >360) ]-360
+    return rho, theta
 
 #===============================================================================
 # Analysis - Parameters 
@@ -229,7 +248,7 @@ class man(object):
         newdata=newdata.reindex(index=idx)
         return newdata
 
-    def getData(self,var= None, every=None, From=None,To=None,by=None, how = None , group = None ,rainfilter = None , reindex =None):
+    def getData(self,var= None, every=None, From=None,To=None,From2=None, To2=None, by=None, how = "mean" , group = None ,rainfilter = None , reindex =None):
         """
         DESCRIPTION
             More sophisticate methods to get the LCBobject data than "getvar"
@@ -267,19 +286,32 @@ class man(object):
                     L       milliseonds
                     U       microseconds
                     N       nanoseconds
+            how: how to group the data : mean or sum
         """
         if From == None:
             From=self.getpara('From')
+        else:
+            self.setpara('From', From)
+            
         if To == None:
-            To=self.getpara('To')
-#         if by == None:
-#             by=self.getpara('By')
+            To=self.getpara('To')        
+        else:
+            self.setpara('To', To)
+        
+        if To2==None:
+            pass
+        else:
+            self.setpara('To2',To2)
+        
+        if From2==None:
+            pass
+        else:
+            self.setpara('From2',From2)
 
 
         if var == None:
-            print('Bite')
-            data = self.Data
 
+            data = self.Data
         else:
             if not isinstance(var, list):
                 var = [var]
@@ -293,18 +325,30 @@ class man(object):
                 else:
                     data = self.Data
 
+
+
         if reindex == True:
-            data = self.reindex(data[From:To])
+            if not From2:
+                data = self.reindex(data[From:To])
+            else:
+                data = self.reindex(data[From:To].append(data[From2:To2]))
         else:
-            data = data[From:To]
+            if not From2:
+                data = data[From:To]
+            else:
+                data = data[From:To].append(data[From2:To2])
+
 
         if rainfilter == True: # need to be implemented in a method
             data=data[data['Rc mm'].resample("3H",how='mean').reindex(index=data.index,method='ffill')< 3]
             if data.empty:
                 raise ValueError(" The rainfilter removed all the data -> ")
 
+
         if by != None:
             data=data.resample(by, how = how)
+
+
 
 #        SHOULD BE WORKING -> I don't remeneber why I did this
 #         if group == True:
@@ -315,20 +359,40 @@ class man(object):
 #                     data=data.groupby(lambda t: (t.hour)).mean()
 #                 else:
 #                     data=data.groupby(lambda t: (t.hour,t.minute)).mean()
-        if group == 'M':
-            data=data.groupby(lambda t: (t.month)).mean()
-
-        if group == 'D':
-            data=data.groupby(lambda t: (t.day)).mean()
-
-        if group == 'H':
-            data=data.groupby(lambda t: (t.hour)).mean()
-
-        if group == 'T':
-            data=data.groupby(lambda t: (t.minute)).mean()
-
-        if group == "TH":
-            data=data.groupby(lambda t: (t.hour,t.minute)).mean()
+        if group:
+            if how == "sum":
+                print "9"*100
+                print "sum"
+                if group == 'M':
+                    data=data.groupby(lambda t: (t.month)).sum()
+        
+                if group == 'D':
+                    data=data.groupby(lambda t: (t.day)).sum()
+        
+                if group == 'H':
+                    data=data.groupby(lambda t: (t.hour)).sum()
+                    print data
+        
+                if group == 'T':
+                    data=data.groupby(lambda t: (t.minute)).sum()
+                if group == "TH":
+                    data=data.groupby(lambda t: (t.hour,t.minute)).sum()
+        
+            elif how == None:
+                if group == 'M':
+                    data=data.groupby(lambda t: (t.month)).mean()
+        
+                if group == 'D':
+                    data=data.groupby(lambda t: (t.day)).mean()
+        
+                if group == 'H':
+                    data=data.groupby(lambda t: (t.hour)).mean()
+        
+                if group == 'T':
+                    data=data.groupby(lambda t: (t.minute)).mean()
+        
+                if group == "TH":
+                    data=data.groupby(lambda t: (t.hour,t.minute)).mean()
 
 
         if every == "M" and var != None:
@@ -430,7 +494,7 @@ class AttVar(object):
     """
     def __init__(self):
         self._attname = ['longname']
-        self._att = {'Ta C':{'longname': 'Temperature (C)'},
+        self._att = {'Ta C':{'longname': 'Temperature (C)','longname_latex':'Temperature $(C^{\circ})$'},
                      'Theta C':{'longname':'Potential temperature (C)'},
                      'Sm m/s':{'longname':'wind speed (m/s)'},
                      'Dm G':{'longname':'Wind direction (degree)'},
@@ -439,7 +503,7 @@ class AttVar(object):
                      'Bat mV':{'longname':'Battery (mV)'},
                      'Rc mm':{'longname':'Accumulated precipitation (mm)'},
                      'Ua %':{'longname':'Relative humidity (%)'},
-                     'Ua g/kg':{'longname':'Specific humidity (g/kg)'},
+                     'Ua g/kg':{'longname':'Specific humidity (g/kg)','longname_latex':'Specific humidity $(g.kg^{-1})$'},
                      'Pa H':{'longname':'Pressure (H)'},
                      }
     def showatt(self):
@@ -675,11 +739,14 @@ class Plots():
                 if isinstance(objectname, list):
                     objectname = "network" # should be implemented somewhere else
 
-                plt.savefig(outpath+v[0:2]+objectname+"_TimePlot.png")
-                print('Saved at -> ' +outpath)
-                plt.close()
+                if outpath:
+                    plt.savefig(outpath+v[0:2]+objectname+"_TimePlot.png")
+                    print('Saved at -> ' +outpath)
+                    plt.close()
+                else:
+                    plt.show()
 
-    def dailyplot(self,var = None, From=None, To=None, group= None, save= False, outpath = "/home/thomas/", labels = None):
+    def dailyplot(self,var = None,how=None, From=None, To=None,From2=None, To2=None, group= None, save= False, outpath = "/home/thomas/", labels = None):
         """
         Make a daily plot of the variable indicated
         """
@@ -689,44 +756,51 @@ class Plots():
         argticks = lcbplot.getarg('ticks')
         argfig = lcbplot.getarg('figure')
         arglegend = lcbplot.getarg('legend')
-        
-        plt.figure(**argfig)
-        print From
-        print To
-        
-        
 
         for v in var:
-            plt.close()
-            color = iter(["r", "b"])
-            for from_ , to_, label in zip(From, To, labels):
+            fig = plt.figure(**argfig)
+            color = iter(["r", "b",'g','y'])
+            for from_ , to_, from2_, to2_, label in zip(From, To, From2, To2, labels):
                 c = color.next()
-                data = self.getData(var = v, From = from_, To=to_)
-                quartile1 = data.groupby(lambda x: x.hour).quantile(q=0.10)
-                quartile3 = data.groupby(lambda x: x.hour).quantile(q=0.90)
-                mean = data.groupby(lambda x: x.hour).mean()
-                print "-->" + str(quartile1.columns)
+                if how == None:
+                    data = self.getData(var = v, From = from_, To=to_, From2=from2_, To2=to2_)
+                    quartile1 = data.groupby(lambda x: x.hour).quantile(q=0.10)
+                    quartile3 = data.groupby(lambda x: x.hour).quantile(q=0.90)
+                    mean = data.groupby(lambda x: x.hour).mean()
+                if how =='sum':
+                    mean = self.getData(var = v,group=group, how=how, From = from_, To=to_, From2=from2_, To2=to2_)
                 
-                plt.fill_between(quartile1[v].index.values, quartile1[v].values, quartile3[v].values, alpha=0.1,color=c)
-    
-                plt.plot([], [], color=c, alpha=0.1,linewidth=10, label=(label+' q=0.90 & 0.10'))
+                if how ==None:
+                    print "-->" + str(quartile1.columns)
+     
+                    plt.fill_between(quartile1[v].index.values, quartile1[v].values, quartile3[v].values, alpha=0.1,color=c)
+
+                    plt.plot([], [], color=c, alpha=0.1,linewidth=10, label=(label+' q=0.90  0.10'))
       
     
-                plt.plot(mean[v].index.values, mean[v].values,linewidth = 2, linestyle='--', color=c, alpha=0.7, label=(label+' mean'))
+                plt.plot(mean[v].index.values, mean[v].values,linewidth = 10, linestyle='-', color=c, alpha=0.7, label=(label+' mean'))
+
+            plt.xlim((0,24))
+            
+            if v=='Ta C':
+                plt.ylabel('Temperature', **arglabel)
+            elif v=='Ua g/kg':
+                plt.ylabel('Specific humidity ', **arglabel)
+            elif v=='Rc mm':
+                plt.ylabel('Accumulated Precipitation', **arglabel)
+            else:
+                plt.ylabel(v, **arglabel)
                 
-    
-    
-            plt.ylabel(v, **arglabel)
             plt.xlabel( "Hours", **arglabel)
-            plt.grid(True)
-            plt.tick_params(axis='both', which='major', **argticks)
+            plt.grid(True, color="0.5")
             plt.tick_params(axis='both', which='major', **argticks)
             plt.legend(**arglegend)
     
             if not save:
                 plt.show()
             else:
-                plt.savefig(outpath+v[0:2]+"_dailyPlot.png")
+                plt.savefig(outpath+v[0:2]+"_dailyPlot.svg", transparent=True)
+
 
 
 class LCB_station(man, Plots):
@@ -889,7 +963,7 @@ class LCB_net(LCB_station, man):
         self.setpara('stanames',[])
         self.setpara('guys', {}) # ask Marcelo is it good to put the LCB object in the parameters?
 
-    def getvarallsta(self, var = None,stanames = None, all = None, by = None, how = None, From=None,To=None):
+    def getvarallsta(self, var = None, stanames = None, all = None, by = None, how = None, From=None,To=None, From2=None, To2=None):
         """
         DESCRIPTION
             return a dataframe with the selected variable from all the stations
@@ -903,8 +977,12 @@ class LCB_net(LCB_station, man):
         df = pd.DataFrame()
         for staname in stanames:
             station = self.getsta(staname)[0]
-            s = station.getData(var = var, by = by, how = how, From=From, To=To)
+            s = station.getData(var = var, by = by, From=From, To=To, From2=None, To2=None)
+            print "*"*80
+            print s
+            print "*"*80
             s.columns = [staname]
+            
             df = pd.concat([df,s], axis=1)
 
         return df
@@ -1149,7 +1227,10 @@ class LCBplot():
                           "fontsize":30
                          },
                 'ticks':{
-                         'labelsize':30
+                         'labelsize':30,
+                         'width':2, 
+                         'length':7
+                         
                          }
                      
                 }

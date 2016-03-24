@@ -49,11 +49,8 @@ class ManageDataLCB(object):
                         'Dm G':{'Min':0,'Max':360},
                         'Bat mV':{'Min':0.0001,'Max':10000},
                         'Vs V':{'Min':9,'Max':9.40}#'Vs V':{'Min':8.5,'Max':9.5}
-
-                         
-                         
-                         
                         }
+        self.nomenclature = {"Bat":"Bat mV","Dm":"Dm G","Sm":"Sm m/s","Ta":"Ta C","Ua":"Ua %","Pa":"Pa H","Rc":"Rc mm","Vs":"Vs V"}
         self.__read(InPath,fname)
         self.Header()
         self.clear()
@@ -186,10 +183,12 @@ class ManageDataLCB(object):
         print('Writing dataframe')
         print('--------------------')
 
-    def clean_dataframe(self, threshold = True, specific = True, reindex = True, gradient = True):
+    def clean_dataframe(self, threshold = True, specific = True, reindex = True, gradient = True, merge_header=True):
         """
         DESCRIPTION
             Apply filter to the dataframe
+        merge_header:
+            to transform the new nomenclature into the newone
         """
         dataframe = self.Dataframe
         
@@ -198,6 +197,14 @@ class ManageDataLCB(object):
         print('0'*80)
         dataframe = dataframe.drop_duplicates()
 
+        if merge_header:
+            colnames = dataframe.columns
+            nomenclature = self.nomenclature
+            for colname in colnames:
+                if colname in nomenclature.keys():
+                    print("COLNAME: --------------------->",colname,"replaced by ", nomenclature[colname])
+                    dataframe[nomenclature[colname]] = dataframe[nomenclature[colname]].combine_first(dataframe[colname])
+                    dataframe = dataframe.drop(colname,1)
 
         if specific:
             dataframe = self._specific_clean(dataframe)
@@ -221,7 +228,8 @@ class ManageDataLCB(object):
             dataframe = self._grad_threshold(dataframe,'Ta C')
             dataframe = self._grad_threshold(dataframe,'Ua %')
 
-        
+
+
         self.Dataframe = dataframe
         print('0'*80)
 
@@ -473,12 +481,30 @@ class ManageDataLCB(object):
             df["2014-09-17 13:32:00":"2014-10-09 13:56:00"]['Rc mm'] = np.nan
             df["2014-09-02 20:52:00":"2014-09-05 10:32:00"]['Rc mm'] = np.nan
         if self.staname == "C18":
-            df[:"2015-05-09 13:10:00"].index = df[:"2015-05-09 13:10:00"].index + pd.DateOffset(hours = 3)
+            print "ALLLLO"
+            print "o"*130
+            index = df[:"2015-05-08 00:00:00"].index - pd.DateOffset(hours = 3)
+            index = index.append(df["2015-05-08 00:00:00":].index)
+            df.index = index
 
+
+        if self.staname == "C18":
+            df = self._var_blocked(df, 'Dm G', 'Sm m/s')
+            df = self._var_blocked(df, 'Sm m/s', 'Dm G')
+        
+        if self.staname == "C17":
+            df = self._var_blocked(df, 'Dm G', 'Sm m/s')
+            df = self._var_blocked(df, 'Sm m/s', 'Dm G')
+            
+        if self.staname == "C19":
+            df = self._var_blocked(df, 'Dm G', 'Sm m/s')
+            df = self._var_blocked(df, 'Sm m/s', 'Dm G')
+        
         if self.staname == "C08":
             df = self._var_blocked(df, 'Dm G', 'Sm m/s')
             df = self._var_blocked(df, 'Sm m/s', 'Dm G')
             
+        
         if self.staname == "C04":
             df = self._var_blocked(df, 'Dm G', 'Sm m/s')
             df = self._var_blocked(df, 'Sm m/s', 'Dm G')
@@ -496,8 +522,8 @@ class ManageDataLCB(object):
 #====== User Input
 
 if __name__=='__main__':
-#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20151116/Extrema20151116'
-#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20151116/Clean/'
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160216/Extrema20160216'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160216/Clean/'
 #     #====== Find all the clima and Hydro
 #     Files=glob.glob(InPath+"/*/*")
 #     print(Files)
@@ -514,41 +540,38 @@ if __name__=='__main__':
 #===============================================================================
 # Merge the clean files
 #===============================================================================
-#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
-#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
-# #     OutPath='/home/thomas/'
-# #     
-# #     From='2015-05-01 00:00:00' 
-# #     To='2015-08-01 00:00:00'
+    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
+    OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+#     OutPath='/home/thomas/'
 #     
-#     if not os.path.exists(OutPath):
-#         os.makedirs(OutPath)
-#       
-#     AttSta=att_sta()
-#     stations=AttSta.stations(['Ribeirao'])
-# #     stations = ['C18']
-#     for sta in stations:
-#         # Permit to find all the find with the extension .TXTclear
-#         print(sta)
-#         matches = []
-#         datamerge=None
-#         for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
-#             for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
-#                 matches.append(os.path.join(root, filename))    
-#         for i in matches:
-#             print(i)
-#             data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i),sta)
-#             try:
-#                 datamerge.append_dataframe(data)
-#             except:
-#                 datamerge=data
-#         datamerge.clean_dataframe()
-#         datamerge.comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
-#         datamerge.write_dataframe(OutPath,sta+'clear_merge.TXT')
+#     From='2015-05-01 00:00:00' 
+#     To='2015-08-01 00:00:00'
+  
+    if not os.path.exists(OutPath):
+        os.makedirs(OutPath)
+         
+    AttSta=att_sta()
+    stations=AttSta.stations(['Ribeirao'])
+    for sta in stations:
+        # Permit to find all the find with the extension .TXTclear
+        print(sta)
+        matches = []
+        datamerge=None
+        for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
+            for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
+                matches.append(os.path.join(root, filename))    
+        for i in matches:
+            print(i)
+            data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i),sta)
+            try:
+                datamerge.append_dataframe(data)
+            except:
+                datamerge=data
+        datamerge.clean_dataframe()
+        datamerge.comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
+        datamerge.write_dataframe(OutPath,sta+'clear_merge.TXT')
 
 
 
 
-    
-    
 
