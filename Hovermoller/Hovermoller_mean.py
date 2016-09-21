@@ -63,7 +63,7 @@ class Hovermoller():
         except KeyError:
                 print(parameter+ ' by [default] dont exist')
 
-    def Select(self, att = None, pos = None):
+    def Select(self, att = None, pos = None, stanames=None):
         """
         DESCRIPTION
             return a sorted list of stations of the network given a list of parameters 
@@ -77,20 +77,28 @@ class Hovermoller():
         if pos == None:
             pos = self.getpara('pos')
 
-        stanames = att_sta().stations(att)
-        position=att_sta().sortsta(stanames, pos)['metadata']
+        if not stanames:
+            stanames = att_sta().stations(att)
+
         staname=att_sta().sortsta(stanames, pos)['stanames']
 
         network=[]
-        print(staname)
+        print(len(staname))
+        print len(net.getpara('stanames'))
+    
+        sta_activ = [] # I think I can remove this in the future # IT is to be sure that the stations already exist
         for sta in staname:
             print(sta)
-            s = self.net.getsta(sta)
-            network.append(s[0])
-
-        self.setpara('nbsta',len(staname))
+            try:
+                s = self.net.getsta(sta)
+                network.append(s[0])
+                sta_activ.append(sta)
+            except KeyError:
+                pass
+        position=att_sta().sortsta(sta_activ, pos)['metadata']
+        self.setpara('nbsta',len(sta_activ))
         self.setpara('metadata',position)
-        self.setpara('stanames',staname)
+        self.setpara('stanames',sta_activ)
 
         return network
 
@@ -119,11 +127,16 @@ class Hovermoller():
 
         for sta in network:
             
+            print "&"*80
+            print sta
+            
+            
             stadata = sta.getData(var=var, From=From, To=To,From2=From2,To2=To2, by=Byvar, group = group, rainfilter = rainfilter)
             staU = sta.getData(var='U m/s', From=From, To=To,From2=From2,To2=To2, by=Bywind, group = group, rainfilter = rainfilter)
             staV = sta.getData(var='V m/s', From=From, To=To, From2=From2,To2=To2,by=Bywind, group = group, rainfilter = rainfilter)
             stadir = sta.getData(var='Dm G', From=From, To=To, From2=From2,To2=To2,by=Bywind, group = group, rainfilter = rainfilter)
-    
+            
+
             if overlap:
                 print self.att_sta.getatt(sta.getpara('stanames'),'side')
                 if self.att_sta.getatt(sta.getpara('stanames'),'side')[0] == "West":
@@ -258,13 +271,15 @@ class Hovermoller():
                 V = pd.DataFrame(0, index = V.index, columns = V.columns)
 
             # sort dataframe by position 
+
             var = var.reindex_axis(self.getpara('stanames'), axis=1)
             U = U.reindex_axis(self.getpara('stanames'), axis=1)
             V = V.reindex_axis(self.getpara('stanames'), axis=1)
  
             position, time = np.meshgrid(self.getpara('metadata'), var.index)
+            
 
-            print vmin
+ 
             if vmin:
                 levels_contour = np.linspace(vmin, vmax, step_contour,endpoint=True)
                 levels_colorbar = np.linspace(vmin, vmax, step_colorbar,endpoint=True)
@@ -272,28 +287,28 @@ class Hovermoller():
                 print "NO"*1010
                 levels_contour=np.linspace(var.min().min(),var.max().max(),100)
                 levels_colorbar=np.linspace(var.min().min(),var.max().max(),100)
-
-            
+ 
+             
             cmap = plt.cm.get_cmap("RdBu_r")
- 
+  
             fig = plt.figure(**argfig)
- 
+  
             if pivot:
-                
+                 
                 c = plt.contourf(time,position,var,levels=levels_contour,cmap=cmap)
                 cbar = plt.colorbar(ticks=levels_colorbar)
-                
+                 
                 if wind:
                     a=plt.quiver(time, position,V.values, U.values,scale=20)
             else:
-
+ 
                 # contour the plot first to remove any AA artifacts
-                
+                 
                 cnt= plt.contourf(position,time,var.values,levels_contour,cmap=cmap)
                 #cnt.set_clim(vmin=15, vmax=25)
                 for c in cnt.collections:
                     c.set_edgecolor("face")
-                
+                 
                 cbar = plt.colorbar(ticks=levels_colorbar)
 #                 cbar.set_ticks(np.arange(12,26,2))
 #                 cbar.set_ticklabels(np.arange(12,26,2))
@@ -302,8 +317,8 @@ class Hovermoller():
                         a=plt.quiver(position,time,U.values,V.values,scale=20)
                     else:
                         a=plt.quiver(position,time,U.values,V.values,scale=wind_scale)
- 
- 
+  
+  
             cbar.ax.tick_params( **argticks)
             if wind:
                 qk = plt.quiverkey(a, 0.9, 1.05, 1, r'$1 \frac{m}{s}$',
@@ -317,8 +332,8 @@ class Hovermoller():
                     l,r,b,t = plt.axis()
                     dx, dy = r-l, t-b
                     plt.axis([l-0.1*dx, r+0.1*dx, b-0*dy, t+0*dy])
-            
-            
+             
+             
             if pivot:
                 plt.ylabel(r"Longitude (Degree)", **arglabel)
                 plt.xlabel( r"Hours", **arglabel)
@@ -328,17 +343,17 @@ class Hovermoller():
             plt.grid(True, color="0.5")
             plt.tick_params(axis='both', which='major', **argticks)
 #             plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-
-
-
+ 
+ 
+ 
             if title:
                 plt.title("hovermoller_"+str(date))
-   
+    
             if not OutPath:
-                
+                 
                 OutPath = '/home/thomas/'
-                  
-#             plt.savefig(OutPath+"hovermoller_"+str(date)+'.png')
+                   
+            plt.savefig(OutPath+"hovermoller_"+str(date)+'.png')
             plt.savefig(OutPath+"Hovermoller.svg", format='svg', dpi=1200)
             print('Plot with sucess')
             plt.close()
@@ -374,6 +389,30 @@ if __name__=='__main__':
 #     hov.plot(OutPath= OutPath, averaged=True, data=data, U=U, V=V, title=None, vmin=1, vmax=6, step_colorbar=11,step_contour=21, wind_scale=15)
 
 
+
+
+# # ===============================================================================
+# # # TO BE SUPRERSSED HOVERMOLLED INMET
+# # #===============================================================================
+#     InPath='/home/thomas/PhD/obs-lcb/staClim/INMET-Master/obs/'
+#     OutPath='/home/thomas/'
+#     Files=glob.glob(InPath+"*")
+#     net=LCB_net()
+#     net.AddFilesSta(Files,net='INMET', clean=False)
+#     print('Success')
+#     hov=Hovermoller(net)
+#     network=hov.Select(att=['Innmet'],pos='Lon')
+# #     network=hov.Select(att=['Ribeirao'],pos='Altitude')
+#     print(network)
+#    
+#     data, U, V = hov.Calc(network, var=['Ta C'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
+# #     print data
+# #     print U
+# #     print V
+# #     print data.median(axis='items')
+# hov.plot(OutPath= OutPath, averaged=True, data=data, U=U, V=V, title=None,vmin=10,vmax=35,step_colorbar=7,step_contour=25, wind_scale=60)
+
+
 # # ===============================================================================
 # # # Average Hovermoller
 # # #===============================================================================
@@ -382,16 +421,27 @@ if __name__=='__main__':
 #     Files=glob.glob(InPath+"*")
 #     net=LCB_net()
 #     net.AddFilesSta(Files)
+#     
+#     dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#     AttSta = att_sta()
+#     AttSta.setInPaths(dirInPath)
+#          
+#     station_names = AttSta.stations(['Head'])
+# #     station_names = station_names + AttSta.stations(['Head','East','valley'])
+#     station_names.remove('C11')
+#     station_names.remove('C13')
+#         
 #     print('Success')
 #     hov=Hovermoller(net)
-#     network=hov.Select(att=['Head'],pos='Lon')
+#         
+#     network=hov.Select(att=['Head'],pos='Lon', stanames =station_names )
 # #     network=hov.Select(att=['Ribeirao'],pos='Altitude')
 #     print(network)
+#       
+#     data= hov.Calc(network, var=['Ev hpa'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Byvar='1H', group = "MH", return_=True)
 #   
-#     data, U, V = hov.Calc(network, var=['Ta C'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
-#   
-#   
-#     hov.plot(OutPath= OutPath, averaged=True, data=data, U=U, V=V, title=None,vmin=14,vmax=26,step_colorbar=7,step_contour=25)
+#     
+#     hov.plot(OutPath= OutPath, averaged=True, data=data,wind=False,title=None,vmin=15,vmax=19,step_colorbar=5,step_contour=21)
 
 # # ===============================================================================
 # # # Average Hovermoller Zonal
@@ -403,14 +453,23 @@ if __name__=='__main__':
     net.AddFilesSta(Files)
     print('Success')
     hov=Hovermoller(net)
-    network=hov.Select(att=['Head'],pos='Lon')
+      
+    dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+    AttSta = att_sta()
+    AttSta.setInPaths(dirInPath)
+      
+    station_names = AttSta.stations(['Head'])
+#     station_names = station_names + AttSta.stations(['Head','East','valley'])
+    station_names.remove('C11')
+     
+    network=hov.Select(att=['Head'],pos='Lon', stanames=station_names)
 #     network=hov.Select(att=['Ribeirao'],pos='Altitude')
     print(network)
-    
-    data, U, V = hov.Calc(network, var=['Ua g/kg'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
-    
-    
-    hov.plot(OutPath= OutPath, averaged=True, zonal=True, data=data, U=U, V=V, title=None,vmin=11,vmax=13.5,step_colorbar=6,step_contour=21,wind_scale=15)
+     
+    data, U, V = hov.Calc(network, var=['Ev hpa'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
+       
+       
+    hov.plot(OutPath= OutPath, averaged=True, zonal=True, data=data, U=U, V=V, title=None,vmin=15,vmax=19,step_colorbar=5,step_contour=21,wind_scale=15)
 
 
 # # #===============================================================================
@@ -423,12 +482,14 @@ if __name__=='__main__':
 #     net.AddFilesSta(Files)
 #     print('Success')
 #     hov=Hovermoller(net)
+#     
+#     
 #     network=hov.Select(att=['Medio'],pos='Lon')
 # #     network=hov.Select(att=['Ribeirao'],pos='Altitude')
 #     print(network)
-#    
+#     
 #     data, U, V = hov.Calc(network, var=['Ta C'],From='2014-11-01 00:00:00',To='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
-# 
+#  
 #     hov.plot(OutPath= OutPath, averaged=True, data=data, U=U, V=V, title=None, vmin=14, vmax=26, step_colorbar=7, step_contour=25, wind_scale=10)
 
 
@@ -459,14 +520,29 @@ if __name__=='__main__':
 #     net.AddFilesSta(Files)
 #     print('Success')
 #     hov=Hovermoller(net)
-#     network=hov.Select(att=['Medio'],pos='Lon')
-# #     print(network)
-#    
-# #     data_verao, U_verao, V_verao = hov.Calc(network, var=['Ta C'],From='2014-11-01 00:00:00',To='2015-03-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH")
-#     hov.Calc(network, var=['Ua g/kg'], From='2014-10-01 00:00:00', To='2015-10-01 00:00:00', Bywind='1H', Byvar='1H', mod=True)
 #     
-# #     data = data_verao - data
-#     hov.plot(OutPath= OutPath, averaged=True)
+#     dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#     AttSta = att_sta()
+#     AttSta.setInPaths(dirInPath)
+#         
+#     station_names = AttSta.stations(['Head'])
+# #     station_names = station_names + AttSta.stations(['Head','East','valley'])
+#     station_names.remove('C11')
+# #     station_names.remove('C13')
+#     
+#     network=hov.Select(att=['Head'],pos='Lon', stanames = station_names)
+# #     print(network)
+#     
+#     data_verao, U_verao, V_verao = hov.Calc(network, var=['Ta C'],From='2014-11-01 00:00:00',To='2015-04-01 00:00:00',
+#                                             From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
+#     data, U, V = hov.Calc(network, var=['Ta C'],From='2015-04-01 00:00:00',To='2015-11-01 00:00:00',Bywind='1H',Byvar='1H', group = "MH", return_=True)
+#     
+#     print data_verao.mean(axis='items')
+#     data = data_verao.mean(axis='items') - data.mean(axis='items')
+#     U = U_verao.mean(axis='items') - U.mean(axis='items')
+#     V = V_verao.mean(axis='items') - V.mean(axis='items')
+#     print data
+#     hov.plot(OutPath= OutPath, data=data, U=U, V=V, averaged=True,vmin=1,vmax=5,step_colorbar=5,step_contour=25)
 
 
 

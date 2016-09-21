@@ -14,6 +14,13 @@ from scipy.interpolate import interp1d
 from collections import Counter
 from scipy import interpolate
 
+from scipy.optimize import curve_fit
+
+def pol(x, a, b):
+    """
+    Polynomial function
+    """
+    return a*x**2 + b*x 
 
 def movingaverage (values, window):
     weights = np.repeat(1.0, window)/window
@@ -29,12 +36,13 @@ class AltitudeAnalysis():
         self.sunrise = "21:00"
         self.sunset = "20:00"
         self.net=LCB_net()
-        self.net.AddFilesSta(Files)
+        self.net.AddFilesSta(Files, net = self.kwargs['net'])
+        self.net.report()
         self.attsta = att_sta() # when I am using it from somewhere elese I canot use it that it why I put it there
-        
-        self.elev = self.attsta.sortsta(self.net.getpara('stanames'), 'Altitude')['metadata']  # This dosen't seems to be dynamic
-        self.stations = self.attsta.sortsta(self.net.getpara('stanames'), 'Altitude')['stanames']  # This dosen't seems to be dynamic
-        self.stas_by_elev = self.net.getsta([],all = True, sorted = 'Altitude')['stanames']
+        self.Files = Files
+        self.elev = self.attsta.sortsta(self.net.getpara('stanames'), 'Alt')['metadata']  # This dosen't seems to be dynamic
+        self.stations = self.attsta.sortsta(self.net.getpara('stanames'), 'Alt')['stanames']  # This dosen't seems to be dynamic
+        self.stas_by_elev = self.net.getsta([],all = True, sorted = 'Alt')['stanames']
 
     def PblHeight(self, option ="sbl", altref = "sealevel", plot =False):
         """
@@ -95,7 +103,8 @@ class AltitudeAnalysis():
         else:
             return pbl_height
 
-    def VarVsAlt(self, From=None, To=None, From2=None, To2=None, desvio_padrao=None, desvio_sta9= None, dates=None, vars=['Ta C'], by = False, every = False, return_data = False, **kwargs):
+    def VarVsAlt(self, From=None, To=None, From2=None, To2=None, desvio_padrao=None, desvio_sta= None, 
+                 dates=None, vars=['Ta C'], by = False, every = False, return_data = False,recalculate=False,quantile=False, **kwargs):
         """
         DECRIPTION
             dates: list of integer representing the date to be ploted.
@@ -111,8 +120,10 @@ class AltitudeAnalysis():
                 'M', month
                 'D', day
                 'H', hour
+            desvio_sta: <str> name of the station to make the difference with. 
             return_data: if True return the data, 
                         if False create the attribut self.var_vs_alt
+            recalculate: if True, recalculate the variable
         NOTE
             I should clean this methods 
         """
@@ -123,22 +134,40 @@ class AltitudeAnalysis():
             data_panel = None
             for staname in self.stas_by_elev:
                 station= self.net.getsta([staname])[0]
-                if desvio_sta9:
-                    sta9 = self.net.getsta(['C15'])[0]
+                if desvio_sta:
+                    sta9 = self.net.getsta([desvio_sta])[0]
+
                 if every:
-                    dataframe  = station.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2)
+                    dataframe  = station.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+
                     if desvio_padrao:
-                        dataframe = dataframe - self.net.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2)
-                    if desvio_sta9:
-                        dataframe = dataframe - sta9.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2)
+                        dataframe = dataframe - self.net.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    if desvio_sta:
+                        dataframe = dataframe - sta9.getData(var=var, by=by, every=every, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                elif quantile:
+                    print 'Quantile'
+                    dataframe  = station.getData(var=var, by = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    
+                    if desvio_padrao:
+                        dataframe = dataframe - self.net.getData(var=var, by = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    if desvio_sta:
+                        dataframe = dataframe - sta9.getData(var=var, by = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    dataframe = dataframe.groupby(lambda t: (t.hour)).quantile(quantile).unstack(level=-1)
+                    print dataframe
                 else:
-                    dataframe  = station.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2)
+                    dataframe  = station.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    
                     if desvio_padrao:
-                        dataframe = dataframe - self.net.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2)
-                    if desvio_sta9:
-                        dataframe = dataframe - sta9.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2)
+                        dataframe = dataframe - self.net.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+                    if desvio_sta:
+                        dataframe = dataframe - sta9.getData(var=var, group = by, From=From, To=To, From2=From2, To2=To2, recalculate=recalculate)
+
+#                 print dataframe                
                 if dates != None:
-                    dataframe = dataframe.iloc[dates,:]
+                    try:
+                        dataframe = dataframe.iloc[dates,:]
+                    except IndexError:
+                        dataframe = pd.DataFrame({var: pd.Series([np.nan]*len(dates),index=dates)})
                 else:
                     dataframe = dataframe.iloc[:,:]
 #                 data_dic[staname] = dataframe
@@ -155,8 +184,9 @@ class AltitudeAnalysis():
                     data_panel = pd.Panel({staname:dataframe})
 #                     print data_panel[staname]
 
+
 #             data_panel = pd.Panel(data_dic)
-                print data_panel
+#                 print data_panel
             data_transposed = data_panel.transpose(2,1,0)
             
             var_vs_alt[var] = data_transposed
@@ -180,7 +210,8 @@ class AltitudeAnalysis():
                 markers.append('o')
         return markers
 
-    def plot(self, analysis, data = None, annotate = False, desvio_padrao = None, join = False, marker_side = None, plot_mean_profile=None, **kwargs):
+    def plot(self, analysis, data = None, annotate = False, desvio_padrao = None, join = False, profile=None, marker_side = None,
+              plot_mean_marker=None, plot_mean_profile=None, delta=None, hasconst=True, polyfit=False, marker=False,  **kwargs):
         """
         DESCRIPTION
             Plot an analysis
@@ -195,6 +226,7 @@ class AltitudeAnalysis():
                 print_= None
             marker_side: TRUE, use different marker to separate the East and the West face
             mean_profile: TRue, draw the mean profile of the period selected
+            hasconstant, False, put the origina of the linear regression to zero
         """
         Ink('Altitude Analysis Plot', 0, kwargs)
         lcbplot = LCBplot() # get the plot object
@@ -207,98 +239,129 @@ class AltitudeAnalysis():
         argfig = lcbplot.getarg('figure')
         arglegend = lcbplot.getarg('legend')
 
-
         if analysis == "var_vs_alt":
             if not data:
                 data = [self.var_vs_alt]
 
+            # get len hours
+            len_hours = data[0].itervalues().next().shape[1]
+#             print "Nb of hours selected: " + str(len_hours)
+
+
             elev = self.elev
+            if delta:
+#                 mp = mp - mp[delta]
+                low_elev = self.attsta.getatt(delta, 'Alt')
+                elev = np.array(elev) - np.array(low_elev)
             if join:
                 argplot['linestyle'] = "-"
                 argplot['linewidth'] = 0.75
                 argplot['alpha'] = 0.7
 
             for var in data[0].keys():
-                if join:
-                    plt.figure(**argfig)
-                    plt.legend(**arglegend)
+#                 if join:
+#                     plt.figure(**argfig)
+#                     plt.legend(**arglegend)
 
                 mean_profiles = []
+#                 colo = ["b", "r",'g','y']
                 colo = ["b", "r",'g','y']
-                for col,var_vs_alt in zip(colo, data):
-                    print"0"*80
-                    print len(data)
+                marko =['^','o']
+
+                for col,mar, var_vs_alt in zip(colo,marko, data):
+#                     print"0"*80
+#                     print len(data)
                     if kwargs.get('grey', False): # in the get the second value is returner if grey doss not exist
                         color = iter(["#990000", "#000080"])
-                        marker = iter(["o",'s'])
-    
-                    if join:
-                        color=iter(cm.RdBu(np.linspace(0,1,len(var_vs_alt[var].items)*len(hours))))
 
-                    if plot_mean_profile:
+                    if join:
+                        color=iter(cm.RdBu(np.linspace(0,1,len(var_vs_alt[var].items)*len_hours)))
+                        color = iter(['b','r','g'])
+
+                    if plot_mean_profile or plot_mean_marker:
+                        print "PLOT MEAN PROFILE"
                         mean_profiles.append(var_vs_alt[var].mean(axis='items'))
-                        color=iter(col*len(var_vs_alt[var].items)*len(hours))
-    
+                        color=iter(col*len(var_vs_alt[var].items)*len_hours)
+                    
+                    if marker:
+                        mark= iter(['o', '^','^','^'])
+                        color = iter(['0.95','0.75','b','r'])
+                    
                     for item in var_vs_alt[var].items:
                         dataframe = var_vs_alt[var][item]
+                        
+#                         if not join:
+#                             plt.figure(**argfig)
+#                             color=iter(cm.RdBu(np.linspace(0,1,len(dataframe.index))))
     
-                        if not join:
-                            plt.figure(**argfig)
-                            color=iter(cm.RdBu(np.linspace(0,1,len(dataframe.index))))
-    
+                        
                         for hour in dataframe.index:
                             nbsta = len(dataframe.loc[hour,:])
+                            
+                            if marker:
+                                m = next(mark)
                             c = next(color)
+                             
                             Ink(elev,2,kwargs)
                             Ink(nbsta,2,kwargs)
     
                             if marker_side:
                                 m = self._markers(dataframe.loc[hour,:].index)
                                 for i,v in enumerate(dataframe.loc[hour,:]):
-                                    plt.plot(v, elev[i], marker=m[i], c=c, label=str(hour), **argplot)
-                            else:
-                                plt.plot(dataframe.loc[hour,:], elev, c=c, label=str(hour), **argplot)
+                                    plt.plot(elev[i], v, marker=m[i], c=c, label=str(hour), **argplot)
 
+                            if profile:
+                                plt.plot(elev, dataframe.loc[hour,:] , c=c, label=str(hour), **argplot)
+
+                            if marker:
+                                plt.plot(elev, dataframe.loc[hour,:] ,marker=mar, c=c, label=str(hour),linestyle='None', markersize=10)
+                
                             if desvio_padrao:
-                                plt.axvline(0)
+                                plt.axvline(0, c='0.8')
+                            if delta:
+                                plt.axhline(0, c='0.8')
     
-                            plt.grid(True)
-                            plt.xlabel(attvar.getatt(var, 'longname')[0], **arglabel)
-                            plt.ylabel("Altitude (m)", **arglabel)
-                            plt.tick_params(axis='both', which='major', **argticks)
-                            plt.tick_params(axis='both', which='major', **argticks)
+                            if marker_side or profile:
+                                plt.xlabel(attvar.getatt(var, 'longname')[0], **arglabel)
+                                plt.ylabel("Altitude (m)", **arglabel)
+                                plt.tick_params(axis='both', which='major', **argticks)
+                                plt.tick_params(axis='both', which='major', **argticks)
                             
-                            if hour == 12 and var =="Ta C":
-                                plt.xlim([-1,6])
-                                
-                            if hour == 12 and var =="Theta C":
-                                plt.xlim([-4,5])
-                                
-                            if hour == 12 and var =="Ua g/kg":
-                                plt.xlim([-1.5,2.5])
-                                
-                            if hour == 12 and var =="Sm m/s":
-                                plt.xlim([-8,2])
-                                
-                            if hour == 4 and var =="Ta C":
-                                plt.xlim([-12,3])
-                                
-                            if hour == 4 and var =="Theta C":
-                                plt.xlim([-22,3])
-                                
-                            if hour == 4 and var =="Ua g/kg":
-                                plt.xlim([-2,2])
-                                
-                            if hour == 4 and var =="Sm m/s":
-                                plt.xlim([-8,5])
+                            plt.grid(True)
+                            plt.yticks(size=16)
+                            plt.xticks(size=16)
+#                             
+#                             if hour == 12 and var =="Ta C":
+#                                 plt.xlim([-1,6])
+#                                 
+#                             if hour == 12 and var =="Theta C":
+#                                 plt.xlim([-4,5])
+#                                 
+#                             if hour == 12 and var =="Ua g/kg":
+#                                 plt.xlim([-1.5,2.5])
+#                                 
+#                             if hour == 12 and var =="Sm m/s":
+#                                 plt.xlim([-8,2])
+#                                 
+#                             if hour == 4 and var =="Ta C":
+#                                 plt.xlim([-12,3])
+#                                 
+#                             if hour == 4 and var =="Theta C":
+#                                 plt.xlim([-22,3])
+#                                 
+#                             if hour == 4 and var =="Ua g/kg":
+#                                 plt.xlim([-2,2])
+#                                 
+#                             if hour == 4 and var =="Sm m/s":
+#                                 plt.xlim([-8,5])
                                 
                         if annotate:
-                            self._annotate_var_vs_elev(dataframe.loc[hour,:], elev, self.stations)
+                            self._annotate_var_vs_elev(elev, dataframe.loc[hour,:], self.stations)
                         if kwargs.get('log', False):
                             plt.yscale('log')
     
                         if not join:
-                            plt.legend(**arglegend)
+#                             plt.legend(**arglegend)
                             if kwargs.get('print_', False):
                                 Ink('Plot',2,kwargs)
                                 outpath = lcbplot.getarg('OutPath')
@@ -309,8 +372,75 @@ class AltitudeAnalysis():
                 if plot_mean_profile:
                     colo = ["b", "r",'g','y']
                     for c,mean_profile in zip(colo, mean_profiles):
-                        plt.plot(mean_profile.loc[hour,:], elev, c='0.90',alpha=0.80, label=str(hour),linewidth=15)
-                        plt.plot(mean_profile.loc[hour,:], elev, c=c, label=str(hour),linewidth=10)
+                        plt.plot(elev, mean_profile.loc[hour,:], c='0.90',alpha=0.80, label=str(hour),linewidth=15)
+                        plt.plot(elev, mean_profile.loc[hour,:], c=c, label=str(hour),linewidth=10)
+
+                if plot_mean_marker:
+                    #                 
+                    fig = plt.figure()
+                    ax = fig.add_subplot(111)
+#                     print mean_profiles
+                    colo = ["b", "r",'k','k']
+                    pos_vertical = [0.95,0.90, 0.85]
+                    linestyle=['-',':','--']
+                    mark = ['o', '^', 's']
+                    for s,m, c,mean_profile, t_v in zip(linestyle, mark, colo, mean_profiles, pos_vertical):
+                        mp = mean_profile.loc[hour,:]
+                        elev = np.array(self.elev).flatten()
+                        if delta:
+                            mp = mp - mp[delta]
+                            low_elev = self.attsta.getatt(delta, 'Alt')
+                            elev = np.array(elev) - np.array(low_elev)
+ 
+                        ax.scatter(elev,mp, c=c,marker=m, label=str(hour),s=100)
+                         
+                        if polyfit:
+                            print elev
+                            print mp
+                            print type(elev)
+                            print type(mp)
+                            est, pcov = curve_fit(polyfit, elev, mp)
+                        else:
+                            if hasconst==True:
+                                X = sm.add_constant(elev)
+                                est = sm.OLS(mp, X).fit()
+                            else:
+                                est = sm.OLS(mp, elev, hasconst=False).fit()
+                             
+ 
+                        X_plot = np.linspace(elev.min(),elev.max(),100)
+                         
+                        if polyfit:
+                                ax.plot(X_plot, est[0]* X_plot**2 + est[1]* X_plot, c=c, linestyle=s)
+#                                 ax.text(0.8, t_v,str(est[0])+'x2 + '+str(est[1])+"x", horizontalalignment='center',
+#                                     verticalalignment='center',color=c,transform = ax.transAxes)
+                                 
+                                text = r'${%.2e}x^{2} + {%.2e}x$' %(est[0], est[1]) 
+                                ax.text(0.1, t_v,text, horizontalalignment='left',verticalalignment='center',color=c,transform = ax.transAxes, fontsize=16)
+ 
+                        else:
+                            if hasconst==True:
+                                ax.plot(X_plot, X_plot*est.params[1] + est.params[0], c=c, linestyle=s)
+                                ax.text(0.8, t_v,str(est.params[1])+'x + '+str(est.params[0]), horizontalalignment='center',
+                                        verticalalignment='center',color=c,transform = ax.transAxes)
+                            else:
+                                ax.plot(X_plot, X_plot*est.params[0], c=c, linestyle=s)
+  
+                            e = est.params[0]*100
+                             
+                            if var=='Ta C':
+                                text = r'${%.2f} C.100m^{-1}$' %e
+                            if var=='Sm m/s':
+                                text = r'${%.2f} m.s^{-1}.100m^{-1}$' %e
+                            if var=='Theta C':
+                                text = r'${%.2f} C.100m^{-1}$' %e
+                            if var =='Ua g/kg':
+                                text = r'${%.2f} g.kg^{-1}.100m^{-1}$' %e
+                            ax.text(0.1, t_v,text, horizontalalignment='left',verticalalignment='center',color=c,transform = ax.transAxes, fontsize=16)
+                        plt.grid()
+                        plt.yticks(size=16)
+                        plt.xticks(size=16)
+
 
                 if join:
                     if kwargs.get('print_', False):
@@ -321,28 +451,56 @@ class AltitudeAnalysis():
                     else:
                         plt.show()
 
-    def Lapserate(self, var = 'Ta C', return_=False, outpath=None, From = None, To = None,From2=None,To2=None, filter=None):
+    def Lapserate(self, var = 'Ta C', return_=False, outpath=None, From = None, To = None,
+                  From2=None,To2=None, filter=None, delta=False , hasconst=True, hours = None):
         """
-        Plot lapserate of a variable
+        Calcul the lapserate of a variable with the altitude of the stations passed
+        
+        parameters:
+            delta: True, return the lapse of the difference of a variable 
+            with the measurement made at the lowest stations  
+            
+            hasconst: True, make the linear regression pass by zero 
         """
 
-        for f in Files:
+        for f in self.Files:
             hours = range(0,24,1)
             lr = [ ]
             for hour in hours:
                 elev = [ ]
                 data = [ ]
-                stations = self.net.getsta('', all=True, sorted='Altitude')
-                for station,staname in zip(stations['stations'],stations['stanames']) :
-                    elev.append(self.attsta.getatt(staname,'Altitude'))
+                stations = self.net.getsta('', all=True, sorted='Alt')
+                if delta:
+                    lowest_sta = stations['stations'][0]
+                    lowest_staname = stations['stanames'][0]
+                    lowest_d = lowest_sta.getData(var = var, group = 'H', From=From, To=To, From2=From2, To2=To2)
+                    lowest_elev = self.attsta.getatt(lowest_staname,'Alt')[0]
+                
+                for station, staname in zip(stations['stations'],stations['stanames']) :
+                    
+                    if delta:
+                        e = self.attsta.getatt(staname,'Alt')[0] - lowest_elev
+                        elev.append(e)
+                    else:
+                        elev.append(self.attsta.getatt(staname,'Alt'))
+                    
                     d = station.getData(var = var, group = 'H', From=From, To=To, From2=From2, To2=To2)
+                    if delta:
+                        d = d-lowest_d
+                    
+#                     print d
                     data.append(d[var][hour])
-                X = sm.add_constant(elev)
-                est = sm.OLS(data, X).fit()
-                lr.append(est.params[1])
+                
+                if hasconst:
+                    X = sm.add_constant(elev)
+                    est = sm.OLS(data, X).fit()
+                    lr.append(est.params[1])
+                else:
+                    est = sm.OLS(data, elev, hasconst=False).fit()
+                    lr.append(est.params[0])
             
             
-#         plt.plot(hours,lr)
+        plt.plot(hours,lr)
         if not outpath:
             pass
         else:
@@ -362,9 +520,9 @@ class AltitudeAnalysis():
             net.AddFilesSta(f)
             df = pd.DataFrame()
             elev = [ ]
-            for staname in self.net.getsta([],all = True, sorted = 'Altitude').keys():
+            for staname in self.net.getsta([],all = True, sorted = 'Alt').keys():
                 print staname
-                elev.append(self.attsta.getatt(staname,'Altitude'))
+                elev.append(self.attsta.getatt(staname,'Alt'))
                 station= self.net.getsta([staname])[0]
                 s = pd.Series(station.getData(var = "Ta C", by = 'D', how = how),name = staname)
                 s.names = staname
@@ -487,7 +645,7 @@ class AltitudeAnalysis():
         print('Determining the height of the Nocturnal boundary layer')
         
         # Getting the basic variables necessary for the analysis
-        dic = self.attsta.sortsta(self.net.getpara("stanames"), "Altitude")# I think this should be remove
+        dic = self.attsta.sortsta(self.net.getpara("stanames"), "Alt")# I think this should be remove
         stanames = self.stations
         elev = self.elev
 
@@ -502,7 +660,7 @@ class AltitudeAnalysis():
             for first, second in zip(d_theta.columns[0:-1], d_theta.columns[1::]):
                 couplename = first+"_"+second
                 new_col_names.append(couplename)
-                alt_couple[couplename] = np.mean([self.attsta.getatt(first, "Altitude")[0], self.attsta.getatt(second, "Altitude")[0]]) 
+                alt_couple[couplename] = np.mean([self.attsta.getatt(first, "Alt")[0], self.attsta.getatt(second, "Alt")[0]]) 
     
             d_theta = d_theta.drop(d_theta.columns[0], axis=1) # drop the first columns which as nan now
             d_theta.columns = new_col_names
@@ -546,7 +704,7 @@ class AltitudeAnalysis():
         Return the lapse rate between each station 
         """
         # Getting the basic variables necessary for the analysis
-#         dic = self.attsta.sortsta(self.net.getpara("stanames"), "Altitude")# I think this should be remove
+#         dic = self.attsta.sortsta(self.net.getpara("stanames"), "Alt")# I think this should be remove
         stanames = self.stations
         elev = self.elev
     
@@ -563,7 +721,7 @@ class AltitudeAnalysis():
         for first, second in zip(d_variable.columns[0:-1], d_variable.columns[1::]):
             couplename = first+"_"+second
             new_col_names.append(couplename)
-            alt_couple[couplename] = np.mean([self.attsta.getatt(first, "Altitude")[0], self.attsta.getatt(second, "Altitude")[0]]) 
+            alt_couple[couplename] = np.mean([self.attsta.getatt(first, "Alt")[0], self.attsta.getatt(second, "Alt")[0]]) 
 
         d_variable = d_variable.drop(d_variable.columns[0], axis=1) # drop the first columns which as nan now
         d_variable.columns = new_col_names
@@ -588,7 +746,7 @@ if __name__=='__main__':
 #     Files =AttSta.getatt(station_names,'InPath')
 #     Files = Files + AttSta.getatt(AttSta.stations(['Head','West','slope']),'InPath')
 #     
-#     altanal = AltitudeAnalysis(Files)
+#     altanal = AltAnalysis(Files)
 
 
     #===========================================================================
@@ -608,27 +766,53 @@ if __name__=='__main__':
 #     altanal.PblHeight(option='sbl', plot=True)
 
 #     #===========================================================================
-#     #Plot "trajectories"
+#     #Plot "trajectories" - 
 #     #===========================================================================
-# 
+  
 #     station_names =AttSta.stations(['Head','East'])
 #     Files =AttSta.getatt(station_names,'InPath')
-#    
-#     altanal = AltitudeAnalysis(Files)
-#    
+#        
+#     altanal = AltitudeAnalysis(Files, net='LCB')
+#        
 #     hours = [12]
-# 
-# 
-#     varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta9=True, by= 'H',
-#                                        every='D',dates=hours, From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', From2='2015-10-01 00:00:00', To2='2016-01-01 00:00:00', return_data=True)
-#  
-#     varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta9=True, by= 'H',
-#                                        every='D',dates=hours, From='2015-05-01 00:00:00', To='2015-10-01 00:00:00', return_data=True)
-#       
-# 
-#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer], print_= True, desvio_padrao=True, join= True, plot_mean_profile=True)
 #     
-
+#     
+#     varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta='C15', by= 'H',
+#                                        every='D',dates=hours, From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', From2='2015-10-01 00:00:00', To2='2016-01-01 00:00:00', return_data=True)
+#      
+#     varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta='C15', by= 'H',
+#                                        every='D',dates=hours, From='2015-05-01 00:00:00', To='2015-10-01 00:00:00', return_data=True)
+#           
+#   
+#     print 'alo'
+#     print varvsalt_winter
+#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer], print_= True,profile=True, desvio_padrao=True, join= True, plot_mean_profile=True)
+#       
+#     #===========================================================================
+#     #Plot "trajectories" - article
+#     #===========================================================================
+#  
+#     station_names =AttSta.stations(['Head','East'])
+#     Files =AttSta.getatt(station_names,'InPath')
+#        
+#     altanal = AltitudeAnalysis(Files, net='LCB')
+#        
+#     hours = [12]
+#     
+#     
+#     varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta='C15', by= 'H',quantile=[0.1,0.9],
+#                                        dates=hours, From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', From2='2015-10-01 00:00:00', To2='2016-01-01 00:00:00', return_data=True)
+#      
+#     varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C', 'Ua g/kg', 'Theta C','Sm m/s'], desvio_sta='C15', by= 'H',quantile=[0.1,0.9],
+#                                        dates=hours, From='2015-05-01 00:00:00', To='2015-10-01 00:00:00', return_data=True)
+#           
+#   
+#     print 'alo'
+#     print varvsalt_winter
+#     print varvsalt_summer
+#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer], shade=True,
+#                   print_= True,profile=False, desvio_padrao=True, join= True, plot_mean_profile=True)
+#       
 #===============================================================================
 # PRINT LAPSE RATE 
 #===============================================================================
@@ -671,78 +855,229 @@ if __name__=='__main__':
 
 
 #===============================================================================
-# plot East/West lapse rate 
+# plot East/West lapse rate Article
 #===============================================================================
  
+ 
+ 
+ 
+#     vars=['Ta C',"Ua g/kg", "Sm m/s" ]
+#     for var in vars:
+#          
+#          
+#         station_names = AttSta.stations(['Head','West','slope'])
+#         station_names = station_names + AttSta.stations(['Head','West','valley'])
+#         station_names = station_names + ['C10']
+#         Files =AttSta.getatt(station_names,'InPath')
+#         altanal = AltitudeAnalysis(Files, net="LCB")
+#          
+#         lp = pd.DataFrame()
+#         lp['lp_Ta_summer_west'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
+#                                                From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#         lp['lp_Ta_winter_west'] = altanal.Lapserate(var=var,return_=True,  From='2015-04-01 00:00:00', To='2015-11-01 00:00:00')
+#         lp['lp_Ta_spring_west'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-01-01 00:00:00', 
+#                                                     From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#         
+#        
+#         station_names = AttSta.stations(['Head','East','slope'])
+#         station_names = station_names + AttSta.stations(['Head','East','valley'])
+#         station_names.remove('C11')
+#         if var== "Ua g/kg":
+#             station_names.remove('C13')
+# 
+#         Files =AttSta.getatt(station_names,'InPath')
+#         altanal = AltitudeAnalysis(Files, net="LCB")
+#                 
+#       
+#         lp['lp_Ta_summer_east'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
+#                                                From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#         lp['lp_Ta_winter_east'] = altanal.Lapserate(var=var,return_=True,  From='2015-04-01 00:00:00', To='2015-11-01 00:00:00')
+#         lp['lp_Ta_spring_east'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-01-01 00:00:00',
+#                                                     From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#           
+#         lp = lp*100
+#         lcbplot = LCBplot() # get the plot object
+#         attvar = AttVar() # get the variable attribute object 
+#           
+#         argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+#         arglabel = lcbplot.getarg('label')
+#         argticks = lcbplot.getarg('ticks')
+#         argfig = lcbplot.getarg('figure')
+#         arglegend = lcbplot.getarg('legend')
+#           
+#         ls = ["-",'-','-','--','--','--']
+#         cs=['r','b','k','r','b','k']
+#         plt.figure(**argfig)
+#           
+#         for c,l,col in zip(cs,ls,lp.columns):
+# #             print col
+#             plt.plot(lp.index,lp[col],c=c, linestyle=l, linewidth=5)
+#         plt.axhline(y=0, color='k', alpha=0.5,linewidth=4) # environnemental lapse rate
+#         if var == "Ta C":
+#             plt.axhline(y=-0.65, color='0.5', alpha=0.5,linewidth=4) # environnemental lapse rate
+#             plt.axhline(y=-0.98, color='0.5', alpha=0.5,linewidth=4) # adiabatic lapse rate
+#         plt.grid(True)
+#         plt.xlabel("Hours (h)", **arglabel)
+#         plt.ylabel("Lapse rate", **arglabel)
+#         plt.xticks(range(0,24,6))
+#         plt.xlim([0,24])
+#         plt.tick_params(axis='both', which='major', **argticks)
+#         plt.tick_params(axis='both', which='major', **argticks)
+#         plt.savefig("/home/thomas/lapserate_"+var[0:2]+".svg", transparent=True)
+#         plt.close()
+#  
 
 
 
-    vars=['Ta C',"Ua g/kg", "Sm m/s" ]
-    for var in vars:
-        
-        
-        station_names = AttSta.stations(['Head','West','slope'])
-        station_names = station_names + AttSta.stations(['Head','West','valley'])
-        Files =AttSta.getatt(station_names,'InPath')
-        altanal = AltitudeAnalysis(Files)
-        
-        lp = pd.DataFrame()
-        lp['lp_Ta_summer_west'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
-                                               From2='2015-10-01 00:00:00',To2='2016-01-01 00:00:00')
-        lp['lp_Ta_winter_west'] = altanal.Lapserate(var=var,return_=True,  From='2015-04-01 00:00:00', To='2015-10-01 00:00:00')
-        lp['lp_Ta_spring_west'] = altanal.Lapserate(var=var,return_=True,  From='2015-11-01 00:00:00', To='2015-01-01 00:00:00', 
-                                               From2='2015-10-01 00:00:00',To2='2016-01-01 00:00:00')
+
+
+#===============================================================================
+# plot East/West lapse rate - DeltaZ
+#===============================================================================
+#  
+ 
+ 
+  
+#     vars=['Ta C']
+#     for var in vars:
+#           
+#           
+#         station_names = AttSta.stations(['Head','West','slope'])
+#         station_names = station_names + AttSta.stations(['Head','West','valley'])
+#         station_names = station_names + ['C10']
+#  
+#         Files =AttSta.getatt(station_names,'InPath')
+#         altanal = AltitudeAnalysis(Files, net="LCB")
+#           
+#         lp = pd.DataFrame()
+#         lp['lp_Ta_summer_west'] = altanal.Lapserate(var=var,return_=True,delta=True,hasconst=False,  From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
+#                                                 From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#         lp['lp_Ta_winter_west'] = altanal.Lapserate(var=var,return_=True, delta=True,hasconst=False, From='2015-04-01 00:00:00', To='2015-11-01 00:00:00')
+#         lp['lp_Ta_spring_west'] = altanal.Lapserate(var=var,return_=True,delta=True,hasconst=False,  From='2014-11-01 00:00:00', To='2015-01-01 00:00:00')
+#            
+#            
+#         station_names = AttSta.stations(['Head','East','slope'])
+#         station_names = station_names + AttSta.stations(['Head','East','valley'])
+#         station_names.remove('C11')
+#         station_names.remove('C13')
+#         Files =AttSta.getatt(station_names,'InPath')
+#         altanal = AltitudeAnalysis(Files, net="LCB")
+#                     
+#           
+#         lp['lp_Ta_summer_east'] = altanal.Lapserate(var=var,return_=True, delta=True,hasconst=False, From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
+#                                                From2='2015-11-01 00:00:00',To2='2016-01-01 00:00:00')
+#         lp['lp_Ta_winter_east'] = altanal.Lapserate(var=var,return_=True,delta=True,hasconst=False,  From='2015-04-01 00:00:00', To='2015-11-01 00:00:00')
+#         lp['lp_Ta_spring_east'] = altanal.Lapserate(var=var,return_=True,delta=True,hasconst=False,  From='2014-11-01 00:00:00', To='2015-01-01 00:00:00')
+#               
+#         lp = lp*100
+#         lcbplot = LCBplot() # get the plot object
+#         attvar = AttVar() # get the variable attribute object 
+#               
+#   
+#         ls = ["-",'-','-','--','--','--']
+#         cs=['r','b','k','r','b','k']
+#         plt.figure()
+#               
+#         for c,l,col in zip(cs,ls,lp.columns):
+#             plt.plot(lp.index,lp[col],c=c, linestyle=l, linewidth=5)
+#         plt.axhline(y=0, color='k', alpha=0.5,linewidth=4) # environnemental lapse rate
+#         if var == "Ta C":
+#             plt.axhline(y=-0.65, color='0.5', alpha=0.5,linewidth=4) # environnemental lapse rate
+#             plt.axhline(y=-0.98, color='0.5', alpha=0.5,linewidth=4) # adiabatic lapse rate
+#         plt.grid(True)
+#         plt.xlabel("Hours (h)", fontsize=20)
+#         plt.ylabel("Lapse rate", fontsize=20)
+#         plt.xticks(range(0,24,6))
+#         plt.xlim([0,24])
+#         plt.tick_params(axis='both', which='major', labelsize=20)
+#         plt.tick_params(axis='both', which='major', labelsize=20)
+#         plt.savefig("/home/thomas/lapserate_"+var[0:2]+".svg", transparent=True)
+#         plt.close()
+# 
+#
+# #     #===========================================================================
+# #     #Plot linear regression and lapse rate - delta
+# #     #===========================================================================
+ 
+    station_names =AttSta.stations(['Head']) 
+#     station_names =AttSta.stations(['Head', 'slope'])
+#     station_names =station_names + AttSta.stations(['Head', 'valley'])
+#     station_names.remove('C13') # humidity 12h
+    station_names.remove('C11')
       
+#     station_names.remove('C10') # Temperature 12h
+#     station_names.remove('C11')
+#     station_names.remove('C08')
      
-        station_names = AttSta.stations(['Head','East','slope'])
-        station_names = station_names + AttSta.stations(['Head','East','valley'])
-        Files =AttSta.getatt(station_names,'InPath')
-        altanal = AltitudeAnalysis(Files)
-              
-    
-        lp['lp_Ta_summer_east'] = altanal.Lapserate(var=var,return_=True,  From='2014-11-01 00:00:00', To='2015-04-01 00:00:00', 
-                                               From2='2015-10-01 00:00:00',To2='2016-01-01 00:00:00')
-        lp['lp_Ta_winter_east'] = altanal.Lapserate(var=var,return_=True,  From='2015-04-01 00:00:00', To='2015-10-01 00:00:00')
-        lp['lp_Ta_spring_east'] = altanal.Lapserate(var=var,return_=True,  From='2015-11-01 00:00:00', To='2015-01-01 00:00:00', 
-                                               From2='2015-10-01 00:00:00',To2='2016-01-01 00:00:00')
+#     station_names.remove('C12') # Temperature 04h
+#     station_names.remove('C11')
+     
+     
+    Files =AttSta.getatt(station_names,'InPath')
+          
+    altanal = AltitudeAnalysis(Files, net='LCB')
+          
+    hours = [12]
+       
+       
+    varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C','Sm m/s','Ev hpa','Ua g/kg','Theta C', 'Pa H'], desvio_sta='C10', by= 'H',
+                                       every='D',dates=hours, From='2014-12-01 00:00:00', To='2015-03-01 00:00:00', 
+                                       From2='2015-12-01 00:00:00', To2='2016-01-01 00:00:00', return_data=True, recalculate=False)
         
-        lp = lp*100
-        print lp
-        lcbplot = LCBplot() # get the plot object
-        attvar = AttVar() # get the variable attribute object 
         
-        argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
-        arglabel = lcbplot.getarg('label')
-        argticks = lcbplot.getarg('ticks')
-        argfig = lcbplot.getarg('figure')
-        arglegend = lcbplot.getarg('legend')
-        
-        ls = ["-",'-','-','--','--','--']
-        cs=['r','b','k','r','b','k']
-        plt.figure(**argfig)
-        
-        for c,l,col in zip(cs,ls,lp.columns):
-            print col
-            plt.plot(lp.index,lp[col],c=c, linestyle=l, linewidth=5)
-        plt.axhline(y=0, color='k', alpha=0.5,linewidth=4) # environnemental lapse rate
-        if var == "Ta C":
-            plt.axhline(y=-0.65, color='0.5', alpha=0.5,linewidth=4) # environnemental lapse rate
-            plt.axhline(y=-0.98, color='0.5', alpha=0.5,linewidth=4) # adiabatic lapse rate
-        plt.grid(True)
-        plt.xlabel("Hours (h)", **arglabel)
-        plt.ylabel("Lapse rate", **arglabel)
-        plt.xticks(range(0,24,6))
-        plt.xlim([0,24])
-        plt.tick_params(axis='both', which='major', **argticks)
-        plt.tick_params(axis='both', which='major', **argticks)
-        plt.savefig("/home/thomas/lapserate_"+var[0:2]+".svg", transparent=True)
-        plt.close()
+    varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C','Sm m/s','Ev hpa','Ua g/kg','Theta C', 'Pa H'], desvio_sta='C10', by= 'H',
+                                       every='D',dates=hours, From='2015-06-01 00:00:00', To='2015-09-01 00:00:00', return_data=True, recalculate=False)
+             
+    varvsalt_spring = altanal.VarVsAlt(vars= ['Ta C','Sm m/s','Ev hpa','Ua g/kg','Theta C', 'Pa H'], desvio_sta='C10', by= 'H',
+                                       every='D',dates=hours, From='2014-10-15 00:00:00', To='2015-12-01 00:00:00', 
+                                       From2='2015-09-01 00:00:00', To2='2015-12-01 00:00:00',
+                                       return_data=True, recalculate=False)
+       
+    altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer, varvsalt_spring], print_= True, 
+                 delta='C10', hasconst=False, desvio_padrao=True, join= True, plot_mean_marker=True)
+#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer, varvsalt_spring], print_= True, 
+#                  delta='C10', polyfit=pol, desvio_padrao=True, join= True, plot_mean_marker=True)
+#          
+#     #===========================================================================
+#     #Plot "trajectories" - quantiles - dispersion 
+#     #===========================================================================
 
-
-
-
-
-
+#     station_names =AttSta.stations(['Head']) 
+# #     station_names =AttSta.stations(['Head', 'slope'])
+# #     station_names =station_names + AttSta.stations(['Head', 'valley'])
+# #     station_names.remove('C13') # humidity 12h
+# #     station_names.remove('C11')
+# #    
+# #     station_names.remove('C10') # Temperature 12h
+# #     station_names.remove('C11')
+# #     station_names.remove('C08')
+#   
+# #     station_names.remove('C12') # Temperature 04h
+# #     station_names.remove('C11')
+#   
+#   
+#     Files =AttSta.getatt(station_names,'InPath')
+#        
+#     altanal = AltitudeAnalysis(Files, net='LCB')
+#        
+#     hours = [04]
+#     
+#     
+#     varvsalt_summer = altanal.VarVsAlt(vars= ['Ta C','Sm m/s','Ev hpa','Ua g/kg','Theta C', 'Pa H'], desvio_sta='C10', by= 'H', quantile=[0.10,0.5,0.90]
+#                                        ,dates=hours, From='2014-12-01 00:00:00', To='2015-03-01 00:00:00', 
+#                                        From2='2015-12-01 00:00:00', To2='2016-01-01 00:00:00', return_data=True, recalculate=False)
+#      
+#      
+#     varvsalt_winter = altanal.VarVsAlt(vars= ['Ta C','Sm m/s','Ev hpa','Ua g/kg','Theta C', 'Pa H'], desvio_sta='C10', by= 'H', quantile=[0.10,0.5,0.90]
+#                                        ,dates=hours, From='2015-06-01 00:00:00', To='2015-09-01 00:00:00', return_data=True, recalculate=False)
+#           
+#  
+#     
+#     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer], print_= True, 
+#                  delta='C10', hasconst=False, desvio_padrao=True, join= True, plot_mean_marker=False, marker=True)
+# #     altanal.plot(analysis = 'var_vs_alt', data=[varvsalt_winter, varvsalt_summer, varvsalt_spring], print_= True, 
+#                  delta='C10', polyfit=pol, desvio_padrao=True, join= True, plot_mean_marker=True)
+ 
 
 
 

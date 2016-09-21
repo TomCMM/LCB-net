@@ -52,9 +52,9 @@ class variability():
         var_diff = pd.DataFrame(data_net, index=data_net.index)
         var_diff.columns = ['network']
 
-        stations = net.getsta('', all=True, sorted='Altitude')
+        stations = net.getsta('', all=True, sorted='Alt')
         print stations
-        altitude = attsta.getatt(stations['stanames'],'Altitude')
+        Alt = attsta.getatt(stations['stanames'],'Alt')
 
         for sta,staname in zip(stations['stations'],stations['stanames']) :
                 var_diff[staname] = sta.getData(var=var, From=From,To=To)
@@ -126,8 +126,11 @@ class variability():
                 cap.set_markeredgewidth(6)
             # ['C17', 'C10', 'C04', 'C18', 'C05', 'C11', 'C16', 'C19', 'C12', 'C06', 'C07', 'C13', 'C08', 'C14', 'C15', 'C09']
 #             stations_names_article = ['S14', 'S7', 'S6', 'S15', 'S5','S8','S13', 'S16', 'S9', 'S4', 'S3', 'S10', 'S2', 'S11', 'S12', 'S1']
-            plt.xticks( range(len(altitude)), altitude,rotation='vertical')
-            longname = self.AttVar.getatt(var, 'longname_latex')
+            plt.xticks( range(len(Alt)), Alt,rotation='vertical')
+            if var =='Ev hpa':
+                longname = ['Vapor pressure (hpa)']
+            else:
+                longname = self.AttVar.getatt(var, 'longname_latex')
             plt.ylabel(longname[0], **arglabel)
             plt.grid()
             plt.margins(0.05)
@@ -152,13 +155,17 @@ class variability():
 
 if __name__=='__main__':
     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-    OutPath='/home/thomas/MergeDataThreeshold/'
+    OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
+    print Files
+    Files.remove('/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C11.TXT')
+#     Files.remove('/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C13.TXT')
+    
     net=LCB_net()
     net.AddFilesSta(Files)
     
-    From = "2015-03-01 00:00:00"
-    To = "2015-11-01 00:00:00 "
+    From = "2014-11-01 00:00:00"
+    To = "2016-01-01 00:00:00 "
     
     variability = variability(net)
     
@@ -193,7 +200,7 @@ if __name__=='__main__':
 # Spatial variability Tmin Tmax
 #===============================================================================
     variability.plot(kind ='spatial_min_max',var= 'Ta C',From=From, To=To, errbar=True, save=True)
-    variability.plot(kind ='spatial_min_max',var= 'Ua g/kg',From=From, To=To, errbar=True, save=True)
+    variability.plot(kind ='spatial_min_max',var= 'Ev hpa',From=From, To=To, errbar=True, save=True)
     
     
     

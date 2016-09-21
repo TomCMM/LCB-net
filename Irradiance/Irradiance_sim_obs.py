@@ -83,6 +83,22 @@ class LCB_Irr():
         Isim=pd.read_csv(inpath, index_col=0, parse_dates=True)
 
         self.data_sim = Isim
+        self.data_sim.columns = ['C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','C18','C19']
+# ,C5
+# ,C6
+# , C7
+# , C8
+# , C9
+# , C10
+# , C11
+# C12
+# C13
+# C14
+# C15
+# C16
+# C17
+# C18
+# C19
 
     def calc_ILw(self,em, T, return_=False):
         """
@@ -175,7 +191,8 @@ class LCB_Irr():
         Iobs = self.data_obs[pyrnometer]
         Isim = self.data_sim[calc_irr_staname]
   
-
+#         Iobs = Iobs.resample('H').mean()
+#         Isim = Isim.resample('H').mean()
         df = pd.concat([ Iobs, Isim], axis=1, join = "outer")
         df.columns = ['Obs','Sim']
 
@@ -206,26 +223,26 @@ class LCB_Irr():
             make a plot of the mean diurnal cycle of the irradiation simulated
             and observated in Ribeirao Das Posses
         """
-        lcbplot = LCBplot() # get the plot object
-        argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
-        arglabel = lcbplot.getarg('label')
-        argticks = lcbplot.getarg('ticks')
-        argfig = lcbplot.getarg('figure')
-        arglegend = lcbplot.getarg('legend')
+#         lcbplot = LCBplot() # get the plot object
+#         argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+#         arglabel = lcbplot.getarg('label')
+#         argticks = lcbplot.getarg('ticks')
+#         argfig = lcbplot.getarg('figure')
+#         arglegend = lcbplot.getarg('legend')
 
-        fig=plt.figure(**argfig)
+#         fig=plt.figure(**argfig)
 
-        
+        plt.figure()
         c_summer = 'r'
         c_winter = 'b'
 
         if kind == 'Irr':
             df = self.concat()
-            summer = df["2014-10":"2015-04"]
-            summer2 = df["2015-10":"2016-04"]
+            summer = df["2014-11":"2015-04"]
+            summer2 = df["2015-11":"2016-01"]
             summer = summer.append(summer2)
 
-            winter = df["2015-04":"2015-10"]
+            winter = df["2015-04":"2015-11"]
             summer.columns = ['Obs_summer','Sim_summer']
             winter.columns = ['Obs_winter','Sim_winter']
             
@@ -263,6 +280,7 @@ class LCB_Irr():
 
         plt.fill_between(quartile1['Obs_summer'].index.values, quartile1['Obs_summer'].values, quartile3['Obs_summer'].values, alpha=0.1,color=c_summer)
         plt.fill_between(quartile1['Obs_winter'].index.values, quartile1['Obs_winter'].values, quartile3['Obs_winter'].values, alpha=0.1,color=c_winter)
+
         plt.plot([], [], color='r', alpha=0.1,linewidth=10, label='Obs S q=0.90 & 0.10')
         plt.plot([], [], color='b',alpha=0.1, linewidth=10, label='Obs W q=0.90 & 0.10')
         
@@ -275,17 +293,18 @@ class LCB_Irr():
 
 
         if kind == 'Irr':
-                plt.plot(mean['Sim_summer'].index.values, mean['Sim_summer'].values,linewidth =10, linestyle='--', color=c_summer, alpha=0.7, label='Sim S median')
-                plt.plot(mean['Sim_winter'].index.values, mean['Sim_winter'].values,linewidth = 10, linestyle='--', color=c_winter, alpha=0.7, label='Sim W median')
-                plt.ylabel(r"Irradiance ($w.m^{-2}$)", **arglabel)
+                plt.plot(quartile2['Sim_summer'].index.values, quartile2['Sim_summer'].values,linewidth =10, linestyle='--', color=c_summer, alpha=0.7, label='Sim S median')
+                plt.plot(quartile2['Sim_winter'].index.values, quartile2['Sim_winter'].values,linewidth = 10, linestyle='--', color=c_winter, alpha=0.7, label='Sim W median')
+                plt.ylabel(r"Irradiance ($w.m^{-2}$)", fontsize = 30)
 
         if kind == 'Ilw':
-                plt.ylabel("Incoming Longwave radiation (w/m2)", **arglabel)
+                plt.ylabel("Incoming Longwave radiation (w/m2)", fontsize = 30,width= 2, length=7)
         
-        plt.xlabel( "Hours", **arglabel)
+        plt.xlabel( "Hours", fontsize = 30)
         plt.grid(True, color="0.5")
-        plt.tick_params(axis='both', which='major', **argticks)
-        plt.tick_params(axis='both', which='major', **argticks)
+        plt.tick_params(axis='both', which='major',  labelsize=30)
+        plt.tick_params(axis='both', which='major', labelsize=30)
+        
 #         plt.legend(**arglegend)
         
         if not save:
@@ -354,16 +373,16 @@ class LCB_Irr():
                 df.columns = ['ratio', 'grad']
                 df = df.between_time('07:00','18:00')
 
-        
-                lcbplot = LCBplot() # get the plot object
-                argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
-                arglabel = lcbplot.getarg('label')
-                argticks = lcbplot.getarg('ticks')
-                argfig = lcbplot.getarg('figure')
-                arglegend = lcbplot.getarg('legend')
+#         
+#                 lcbplot = LCBplot() # get the plot object
+#                 argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+#                 arglabel = lcbplot.getarg('label')
+#                 argticks = lcbplot.getarg('ticks')
+#                 argfig = lcbplot.getarg('figure')
+#                 arglegend = lcbplot.getarg('legend')
                 
                 plt.close()
-                fig = plt.figure(**argfig)
+                fig = plt.figure()
                 plt.xlim([7,18])
                 color=iter(['b','r'])
                 for i,v in enumerate(ratio_labels):
@@ -372,10 +391,12 @@ class LCB_Irr():
                     print v
                     if v != remove:
                         ax = plt.plot(select.index, select, label=v,c=next(color), linewidth=10)
-                plt.xticks(**arglabel)
-                plt.yticks(**arglabel)
-                plt.xlabel('hours (h)', **arglabel)
-                plt.ylabel('Difference', **arglabel)
+                plt.xticks()
+                plt.yticks()
+                plt.tick_params(axis='both', which='major', labelsize=30)
+                plt.tick_params(axis='both', which='major', labelsize=30)
+#                 plt.xlabel('hours (h)', fontsize=30)
+#                 plt.ylabel('Difference', fontsize=30)
                 
                 plt.axhline(y=0,color='k') # horizontal line at 0
                 
@@ -430,10 +451,12 @@ if __name__=='__main__':
     files_obs = glob.glob(inpath_obs+"*")
     print files_obs
     irr.read_obs(files_obs)
+    data = irr.data_obs
+    data.to_csv('/home/thomas/irr.csv')
         
-    inpath_sim='/home/thomas/Irradiance_analysis/Irradiance_rsun_lin2_lag-0.2_glob_df.csv'
-    irr.read_sim([inpath_sim])
-     
+#     inpath_sim='/home/thomas/Irradiance_rsun_lin2_lag0_glob_df.csv'
+#     irr.read_sim(inpath_sim)
+#       
 # #     #===========================================================================
 # #     # Quantiles plot
 # #     #===========================================================================
@@ -444,21 +467,23 @@ if __name__=='__main__':
 # #     # var vs irradiation ratio
 # #     #===========================================================================
 # #     # Get the gradient data
-#     dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-#     outpath = '/home/thomas/'
+    dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+    outpath = '/home/thomas/'
 #    
-#     grad = Gradient(dir_inpath)
-#     grad.couples_net([['West', 'East'],['valley','slope'], ['Medio', 'Head','valley']])
-#     data_grad = grad.grad(var=['Ua g/kg'], by = "H", From ='2014-11-01 00:00:00', To = '2016-01-01 00:00:00' , return_=True)
-#    
-#     valley_slope= data_grad['valley_slope2014-11-01 00:00:00']
-#     irr.var_vs_ratio(data_grad=valley_slope,kind = "irr",ratio_class = True, remove='30_70', save=True, name="VS")
-#     
-#     west_east= data_grad['West_East2014-11-01 00:00:00']
-#     irr.var_vs_ratio(data_grad=west_east,kind = "irr",ratio_class = True, remove='30_70', save=True, name="WE")
-#     
-#     medio_head= data_grad['Medio_Head_valley2014-11-01 00:00:00']
-#     irr.var_vs_ratio(data_grad=medio_head,kind = "irr",ratio_class = True, remove='30_70', save=True, name="MH")
+    grad = Gradient(dir_inpath)
+    grad.couples_net([['West', 'East'],['valley','slope'], ['Medio', 'Head','valley']])
+    data_grad = grad.grad(var=['Ta C'], by = "H", From ='2014-11-01 00:00:00', To = '2016-01-01 00:00:00' , return_=True)
+     
+    print data_grad
+     
+    valley_slope= data_grad['valley_slope2014-11-01 00:00:00']
+    irr.var_vs_ratio(data_grad=valley_slope,kind = "irr",ratio_class = True, remove='30_70', save=True, name="VS")
+      
+    west_east= data_grad['West_East2014-11-01 00:00:00']
+    irr.var_vs_ratio(data_grad=west_east,kind = "irr",ratio_class = True, remove='30_70', save=True, name="WE")
+      
+    medio_head= data_grad['Medio_Head_valley2014-11-01 00:00:00']
+    irr.var_vs_ratio(data_grad=medio_head,kind = "irr",ratio_class = True, remove='30_70', save=True, name="MH")
 #   
 #   
 # #===========================================================================
@@ -468,194 +493,217 @@ if __name__=='__main__':
 #     station9 = LCB_station(Path)
 #     data9 = station9.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
 #     
-    From='2014-11-01 00:00:00'
-    To='2016-01-01 00:00:00'
-
-    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
-    station = LCB_station(Path)
-    data = station.getData(['Sm m/s','Ta C', 'Ev hpa'],From=From, To=To, by='H')
-    data = data.between_time('03:00','05:00')
-    data = data.resample('D', how='mean')
-#     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C08.TXT'
-#     station8 = LCB_station(Path)
-#     data = station.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
-#        
-#     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT'
-#     station7 = LCB_station(Path)
-#     data = station.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
-#        
-#     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT'
-#     station_15 = LCB_station(Path)
-#     data_15 = station_15.getData(['Ta C', 'Ev hpa'], by='H')
-     
-     
-#     dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-#     grad = Gradient(dir_inpath)
-#     grad.couples_net([['valley','slope']])
-#     data_grad = grad.grad(var=['Ta C'], by = "H", From ='2014-11-01 00:00:00', To = '2015-10-01 00:00:00' , return_=True)
-#     
-#     valley_slope= data_grad['valley_slope2014-11-01 00:00:00']
-#     valley_slope = valley_slope.between_time('03:00','04:00')
-#     valley_slope = valley_slope.resample('D', how='mean')
-#        
-#     irr.calc_ILw(data['Ev hpa'],data['Ta C'])
-    ratio =  irr.ratio()
-    ratio = ratio[np.isfinite(ratio)]
-    ratio = ratio.between_time('08:00','10:00')
-    ratio = ratio.resample('D', how='mean')
-    ratio.name = 'ratio'
-    data = pd.concat([data, ratio], axis=1, join ='inner')
-    
-#===============================================================================
-# Scatter plot of variable vs Longwave incoming radiation filtered by wind
-# #===============================================================================
+#     From='2014-11-01 00:00:00'
+#     To='2016-01-01 00:00:00'
 #  
-#        
-#     wind = station.getData(['Sm m/s'])
-#     wind8 = station8.getData(['Sm m/s'])
-#     wind7 = station7.getData(['Sm m/s'])
+#     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
+#     station = LCB_station(Path)
+#     data = station.getData(['Sm m/s','Ta C', 'Ev hpa'],From=From, To=To, by='H')
+#     data = data.between_time('03:00','05:00')
+#     data = data.resample('D', how='mean')
+# #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C08.TXT'
+# #     station8 = LCB_station(Path)
+# #     data = station.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
+# #        
+# #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT'
+# #     station7 = LCB_station(Path)
+# #     data = station.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
+# #        
+# #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C15.TXT'
+# #     station_15 = LCB_station(Path)
+# #     data_15 = station_15.getData(['Ta C', 'Ev hpa'], by='H')
 #       
-#     V =  station9.getData(['V m/s'])
-#     speed =  station9.getData(['Sm m/s'])
-# #  
-# #     wind = wind['Sm m/s'][V[(V['V m/s']<0) & (speed['Sm m/s']<15)].index] # select only wind from the NOrth
-#     wind = pd.concat([wind,wind8,wind7],axis=1, join ='inner').max(axis=1)
-#     wind.name = 'Sm m/s'
-#     print V<0
-#     wind = wind.between_time('03:00','05:00')
-#     wind = wind.resample('D', how='mean')
-#        
-#     valley_slope = pd.concat([valley_slope,wind],axis=1, join = 'inner')
-#     print valley_slope.columns
+#       
+# #     dir_inpath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+# #     grad = Gradient(dir_inpath)
+# #     grad.couples_net([['valley','slope']])
+# #     data_grad = grad.grad(var=['Ta C'], by = "H", From ='2014-11-01 00:00:00', To = '2015-10-01 00:00:00' , return_=True)
 # #     
-# #     wind_count = station.getData(['Sm m/s'])
-# #     wind_count = wind_count.resample('H', how='mean')
-# #     wind_count = wind_count.between_time('18:00','05:00')
-# #     wind_count.index = wind_count.index+pd.offsets.Hour(6)
-# #     wind_count = wind_count[wind_count<4]
-# #     wind_count = wind_count.resample('D', how='count')
-# #     print wind_count
-#    
-#   
-#   
-#     Ilw = irr.Ilw.between_time('03:00','05:00')
-#     Ilw = Ilw.resample('D', how='mean')
-# #     Ilw = Ilw.multiply(wind_count['Sm m/s'], axis=0) # POWER
-# #
-# #     Ta9 = station.getData(['Ta C'])
-# #     Ta9 = Ta9.between_time('04:00','05:00')
-# #     Ilw = Ta9.resample('D', how='mean')
-#     Ilw.columns = ['longwave']
-#     data = pd.concat([valley_slope, Ilw], axis=1, join ='inner')
-       
-#===============================================================================
-# Lapse rate
-#===============================================================================
-       
-    dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-    AttSta = att_sta()
-    AttSta.setInPaths(dirInPath)
-     
-    # West
-    station_names =AttSta.stations(['Head','East','valley'])
-    station_names.extend(AttSta.stations(['Head','East','slope']))
-#     station_names.remove('C08')
-        
-         
-    Files =AttSta.getatt(station_names,'InPath')
-    altanal = AltitudeAnalysis(Files)
-        
-    lapserate_West=  altanal._lapserate(var='Ua g/kg').mean(axis=1)
-    lapserate_West = lapserate_West.between_time('03:00','05:00')
-    lapserate_West = lapserate_West.resample('D')
-    lapserate_West.name = 'lapserate'
+# #     valley_slope= data_grad['valley_slope2014-11-01 00:00:00']
+# #     valley_slope = valley_slope.between_time('03:00','04:00')
+# #     valley_slope = valley_slope.resample('D', how='mean')
+# #        
+# #     irr.calc_ILw(data['Ev hpa'],data['Ta C'])
+#     ratio =  irr.ratio()
+#     ratio = ratio[np.isfinite(ratio)]
+#     ratio = ratio.between_time('08:00','10:00')
+#     ratio = ratio.resample('D', how='mean')
+#     ratio.name = 'ratio'
+#     data = pd.concat([data, ratio], axis=1, join ='inner')
 #      
-#     # East
-#     station_names =AttSta.stations(['Head','East','valley'])
-#     station_names.extend(AttSta.stations(['Head','East','slope']))
-#     station_names.remove('C14')
-# #     station_names.remove('C10')
-#       
-#     Files =AttSta.getatt(station_names,'InPath')
-#     altanal = AltitudeAnalysis(Files)
-        
-#     lapserate_East=  altanal._lapserate(var='Theta C').mean(axis=1)
-#     lapserate_East = lapserate_East.between_time('03:00','05:00')
-#     lapserate_East = lapserate_East.resample('D')
-#     lapserate_East.name = 'lapserate'
-#      
-        
-#     lapserate = pd.concat([lapserate_West], axis=1, join='inner').mean(axis=1)
-#     print lapserate
-#     lapserate.name = 'lapserate'
-        
-    data = pd.concat([data, lapserate_West], axis=1, join = 'inner')
- 
-#===============================================================================
-# Shear
-#===============================================================================
-        
+# #===============================================================================
+# # Scatter plot of variable vs Longwave incoming radiation filtered by wind
+# # #===============================================================================
+# #  
+# #        
+# #     wind = station.getData(['Sm m/s'])
+# #     wind8 = station8.getData(['Sm m/s'])
+# #     wind7 = station7.getData(['Sm m/s'])
+# #       
+# #     V =  station9.getData(['V m/s'])
+# #     speed =  station9.getData(['Sm m/s'])
+# # #  
+# # #     wind = wind['Sm m/s'][V[(V['V m/s']<0) & (speed['Sm m/s']<15)].index] # select only wind from the NOrth
+# #     wind = pd.concat([wind,wind8,wind7],axis=1, join ='inner').max(axis=1)
+# #     wind.name = 'Sm m/s'
+# #     print V<0
+# #     wind = wind.between_time('03:00','05:00')
+# #     wind = wind.resample('D', how='mean')
+# #        
+# #     valley_slope = pd.concat([valley_slope,wind],axis=1, join = 'inner')
+# #     print valley_slope.columns
+# # #     
+# # #     wind_count = station.getData(['Sm m/s'])
+# # #     wind_count = wind_count.resample('H', how='mean')
+# # #     wind_count = wind_count.between_time('18:00','05:00')
+# # #     wind_count.index = wind_count.index+pd.offsets.Hour(6)
+# # #     wind_count = wind_count[wind_count<4]
+# # #     wind_count = wind_count.resample('D', how='count')
+# # #     print wind_count
+# #    
+# #   
+# #   
+# #     Ilw = irr.Ilw.between_time('03:00','05:00')
+# #     Ilw = Ilw.resample('D', how='mean')
+# # #     Ilw = Ilw.multiply(wind_count['Sm m/s'], axis=0) # POWER
+# # #
+# # #     Ta9 = station.getData(['Ta C'])
+# # #     Ta9 = Ta9.between_time('04:00','05:00')
+# # #     Ilw = Ta9.resample('D', how='mean')
+# #     Ilw.columns = ['longwave']
+# #     data = pd.concat([valley_slope, Ilw], axis=1, join ='inner')
+# 
+# 
+# #===============================================================================
+# # nigth time lapse rate article
+# #===============================================================================
+# 
 #     dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
 #     AttSta = att_sta()
 #     AttSta.setInPaths(dirInPath)
-#         
-#     station_names =AttSta.stations(['Head','West','slope'])
-#     station_names.extend(AttSta.stations(['Head','East','slope']))
-#     station_names.append('C09')
-#     station_names.append('C15')
+#          
+#     station_names = AttSta.stations(['Head','slope'])
+#     station_names = station_names + AttSta.stations(['Head','valley'])
+#     station_names.remove('C11')
+# 
 #     Files =AttSta.getatt(station_names,'InPath')
-#     altanal = AltitudeAnalysis(Files)
-#     shear=  altanal._lapserate(var='Sm m/s').mean(axis=1)
-#     shear = shear.between_time('04:00','05:00')
-#     shear = shear.resample('D')
-#     shear.name = 'shear'
-#     print shear
-#     data = pd.concat([data, shear], axis=1, join = 'inner')
-#     print data
-   
-#===============================================================================
-# wind sta9 vs DT
-#===============================================================================
-#     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
-#     station09 = LCB_station(Path)
-#     wind_valley = station09.getData('Ta C')
-#     wind_valley = wind_valley.between_time('03:00','05:00')
-#     wind_valley = wind_valley.resample('D')
-#     wind_valley.columns = ["valley"]
-     
-#     data = pd.concat([data, wind_valley], axis=1, join = 'inner')
-#     print data.columns
-    
-    lcbplot = LCBplot() # get the plot object
-    argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
-    arglabel = lcbplot.getarg('label')
-    argticks = lcbplot.getarg('ticks')
-    argfig = lcbplot.getarg('figure')
-    arglegend = lcbplot.getarg('legend')
-    
-    plt.close()
-    fig = plt.figure(**argfig)
-    
-    plt.axvline(x=0,color='k', linewidth=5, alpha=0.5)
-    plt.axhline(y=5,color='k',linestyle='--', linewidth=5, alpha=0.5)
-    cmap = plt.get_cmap('RdBu_r')
-    plt.scatter(data['lapserate']*100, data['Sm m/s'], c = data['ratio'],cmap=cmap, s=100)
-    print data['lapserate']
-    cbar = plt.colorbar()
-    cbar.ax.tick_params(labelsize=40) 
-    plt.xticks(**arglabel)
-    plt.yticks(**arglabel)
-    plt.xlabel('lapse rate', **arglabel)
-    plt.ylabel('wind speed', **arglabel)
-    plt.tick_params(axis='both', which='major', **argticks)
-    cbar.ax.tick_params(axis='both', which='major', **argticks)
-#     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-    plt.grid(True)
-    plt.savefig("/home/thomas/lapserate_ratio_night.svg", transparent=True)
-
-
-
-
+#     altanal = AltitudeAnalysis(Files, net="LCB")
+#      
+# #     lp = altanal.Lapserate(var='Ta C',return_=True,delta=True,hasconst=False,  From='2014-11-01 00:00:00', To='2016-01-01 00:00:00')
+# #     print lp
+# #     
+# #     lapserate_West=  altanal._lapserate(var='Ua g/kg').mean(axis=1)
+# #===============================================================================
+# # Lapse rate
+# #===============================================================================
+#         
+# #     dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+# #     AttSta = att_sta()
+# #     AttSta.setInPaths(dirInPath)
+# #       
+# #     # West
+# #     station_names =AttSta.stations(['Head','East','valley'])
+# #     station_names.extend(AttSta.stations(['Head','East','slope']))
+# # #     station_names.remove('C08')
+# #          
+# #           
+# #     Files =AttSta.getatt(station_names,'InPath')
+# #     altanal = AltitudeAnalysis(Files, net="LCB")
+# #          
+#     lapserate_West=  altanal._lapserate(var='Ta C').mean(axis=1)
+#     print lapserate_West
+#     lapserate_West = lapserate_West['2014-11-01 00:00:00': '2016--01 00:00:00']
+#     lapserate_West = lapserate_West.between_time('03:00','05:00')
+#     lapserate_West = lapserate_West.resample('D').mean()
+#     print lapserate_West
+#     lapserate_West.name = 'lapserate'
+# #      
+# #     # East
+# #     station_names =AttSta.stations(['Head','East','valley'])
+# #     station_names.extend(AttSta.stations(['Head','East','slope']))
+# #     station_names.remove('C14')
+# # #     station_names.remove('C10')
+# #       
+# #     Files =AttSta.getatt(station_names,'InPath')
+# #     altanal = AltitudeAnalysis(Files)
+#           
+# #     lapserate_East=  altanal._lapserate(var='Theta C').mean(axis=1)
+# #     lapserate_East = lapserate_East.between_time('03:00','05:00')
+# #     lapserate_East = lapserate_East.resample('D')
+# #     lapserate_East.name = 'lapserate'
+# #      
+#           
+# #     lapserate = pd.concat([lapserate_West], axis=1, join='inner').mean(axis=1)
+# #     print lapserate
+# #     lapserate.name = 'lapserate'
+#           
+#     data = pd.concat([data, lapserate_West], axis=1, join = 'inner')
+#   
+# #===============================================================================
+# # Shear
+# #===============================================================================
+#          
+# #     dirInPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+# #     AttSta = att_sta()
+# #     AttSta.setInPaths(dirInPath)
+# #         
+# #     station_names =AttSta.stations(['Head','West','slope'])
+# #     station_names.extend(AttSta.stations(['Head','East','slope']))
+# #     station_names.append('C09')
+# #     station_names.append('C15')
+# #     Files =AttSta.getatt(station_names,'InPath')
+# #     altanal = AltitudeAnalysis(Files)
+# #     shear=  altanal._lapserate(var='Sm m/s').mean(axis=1)
+# #     shear = shear.between_time('04:00','05:00')
+# #     shear = shear.resample('D')
+# #     shear.name = 'shear'
+# #     print shear
+# #     data = pd.concat([data, shear], axis=1, join = 'inner')
+# #     print data
+#     
+# #===============================================================================
+# # wind sta9 vs DT
+# #===============================================================================
+# #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
+# #     station09 = LCB_station(Path)
+# #     wind_valley = station09.getData('Ta C')
+# #     wind_valley = wind_valley.between_time('03:00','05:00')
+# #     wind_valley = wind_valley.resample('D')
+# #     wind_valley.columns = ["valley"]
+#        
+# #     data = pd.concat([data, wind_valley], axis=1, join = 'inner')
+# #     print data.columns
+#       
+# #     lcbplot = LCBplot() # get the plot object
+# #     argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+# #     arglabel = lcbplot.getarg('label')
+# #     argticks = lcbplot.getarg('ticks')
+# #     argfig = lcbplot.getarg('figure')
+# #     arglegend = lcbplot.getarg('legend')
+#       
+#     plt.close()
+#     fig = plt.figure()
+#       
+#     plt.axvline(x=0,color='k', linewidth=5, alpha=0.5)
+#     plt.axhline(y=5,color='k',linestyle='--', linewidth=5, alpha=0.5)
+#     cmap = plt.get_cmap('RdBu_r')
+#     plt.scatter(data['lapserate']*100, data['Sm m/s'], c = data['ratio'],cmap=cmap, s=50)
+#     print data['lapserate']
+#     cbar = plt.colorbar()
+#     cbar.ax.tick_params(labelsize=40) 
+#     plt.xticks()
+#     plt.yticks()
+#     plt.xlabel('lapse rate',  fontsize=30)
+#     plt.ylabel('wind speed',  fontsize=30)
+#     plt.tick_params(axis='both', which='major', labelsize=30)
+#     cbar.ax.tick_params(axis='both', which='major', labelsize=30)
+# #     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+#     plt.grid(True)
+#     plt.savefig("/home/thomas/lapserate_ratio_night.svg", transparent=True)
+#  
+#  
+ 
+ 
 #===============================================================================
 # Divergence
 #===============================================================================
@@ -663,34 +711,34 @@ if __name__=='__main__':
 #     outpath="/home/thomas/"
 #     AttSta = att_sta()
 #     AttSta.setInPaths(dirInPath)
-#      
+#       
 #     net_West = LCB_net()
 #     net_East = LCB_net()
-#      
-#      
+#       
+#       
 #     files_west = AttSta.getatt(AttSta.stations(['Head','West','valley']),'InPath')
 #     files_west = files_west + AttSta.getatt(AttSta.stations(['Head','West','slope']),'InPath')
-#      
+#       
 #     files_east = AttSta.getatt(AttSta.stations(['Head','East','valley']),'InPath')
 #     files_east = files_east + AttSta.getatt(AttSta.stations(['Head','East','slope']),'InPath')
-#  
-#      
+#   
+#       
 #     net_West.AddFilesSta(files_west)
 #     net_East.AddFilesSta(files_east)
-#  
+#   
 #     Div = Divergence(net_West, net_East)
-#      
+#       
 #     conv_spring = Div.div( From='2014-10-01 00:00:00', To='2016-01-01 00:00:00')
 #     print "spring"
 #     print conv_spring.index
-#    
-#    
-#  
-# #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
-# #     station9 = LCB_station(Path)
-# #     data = station9.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
-# #     irr.calc_ILw(data['Ev hpa'],data['Ta C'])
-#  
+# #    
+# #    
+# #  
+# # #     Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/C09.TXT'
+# # #     station9 = LCB_station(Path)
+# # #     data = station9.getData(['Sm m/s','Ta C', 'Ev hpa'], by='H')
+# # #     irr.calc_ILw(data['Ev hpa'],data['Ta C'])
+# #  
 #     irr.var_vs_ratio(data_grad=conv_spring,kind = "irr",ratio_class = True, remove='30_70',save=True, sci=True, name="Divergence")
 
 

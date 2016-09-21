@@ -16,15 +16,19 @@ if __name__=='__main__':
     irr = LCB_Irr()
     inpath_obs = '/home/thomas/PhD/obs-lcb/LCBData/obs/Irradiance/data/'
     files_obs = glob.glob(inpath_obs+"*")
-    print files_obs
     irr.read_obs(files_obs)
     
 #     
 #     irr.data_obs['Pira_397'].plot()
 #     plt.show()
-    inpath_sim='/home/thomas/Irradiance_analysis/Irradiance_rsun_lin2_lag-0.2_glob_df.csv'
-    irr.read_sim([inpath_sim])
-#     
+    inpath_sim='/home/thomas/Irradiance_rsun_lin2_lag0_glob_df.csv'
+    irr.read_sim(inpath_sim)
+
+    df = irr.concat()
+    print df
+    
+    df.plot()
+    plt.show()
 #   
 #     #===========================================================================
 #     # Quantiles plot

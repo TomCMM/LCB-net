@@ -105,7 +105,7 @@ class Gradient():
             newdf = newdf.join(subserie,how='outer')
         return newdf
 
-    def grad(self, rainfilter = False, var = 'Ta C', by= None, From = None, To = None, From2=None,To2=None, group=None, how=None, return_=None):
+    def grad(self, rainfilter = False, var = 'Ta C', by= None, From = None, To = None, From2=None,To2=None, group=None, how='mean', return_=None):
         """
         DESCRITPION
             give the difference between a station and another
@@ -122,6 +122,12 @@ class Gradient():
             From = [From]
         if not isinstance(To, list):
             To = [To]
+#         if not isinstance(From2, list):
+#             From2 = [From2]
+#         if not isinstance(To2, list):
+#             To2 = [To2]
+#         print From2
+#         print To2
 
         new_couples_name = []
         for from_ , to_, From2_,To2_ in zip(From, To, From2,To2):
@@ -156,15 +162,15 @@ class Gradient():
         except AttributeError:
             print("Need to run the method grad before to run this one")
 
-        lcbplot = LCBplot() # get the plot object
-        argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
-        arglabel = lcbplot.getarg('label')
-        argticks = lcbplot.getarg('ticks')
-        argfig = lcbplot.getarg('figure')
-        arglegend = lcbplot.getarg('legend')
+#         lcbplot = LCBplot() # get the plot object
+#         argplot = lcbplot.getarg('plot') # get the argument by default set in the LCB plot 
+#         arglabel = lcbplot.getarg('label')
+#         argticks = lcbplot.getarg('ticks')
+#         argfig = lcbplot.getarg('figure')
+#         arglegend = lcbplot.getarg('legend')
         
         plt.close()
-        fig = plt.figure(**argfig)
+        fig = plt.figure()
 
         
         if grey == True:
@@ -189,16 +195,17 @@ class Gradient():
 
             print mean.index
             if l ==':':
-                plt.plot(mean.index.values, mean.values, linestyle=l, color=c, alpha=0.8, label=name,linewidth=8, dashes=(8, 15))
+                plt.plot(mean.index.values, mean.values, linestyle=l, color=c,  label=name,linewidth=4, dashes=(4, 3))
             else:
-                plt.plot(mean.index.values, mean.values, linestyle=l, color=c, alpha=0.8, label=name,linewidth=10)
-        plt.xticks(range(0,24,6), **arglabel)
+                plt.plot(mean.index.values, mean.values, linestyle=l, color=c,  label=name,linewidth=6)
+        plt.xticks(range(0,24,6), fontsize=20)
         plt.xlim([0,24])
         legend = plt.legend(loc='best',prop={'size':15})
-        plt.xticks(**arglabel)
-        plt.yticks(**arglabel)
-        plt.xlabel('hours (h)', **arglabel)
-        plt.ylabel('Difference', **arglabel)
+        plt.xticks(fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.xlabel('hours (h)',fontsize=20)
+        plt.ylabel('Difference',fontsize=20)
+        plt.tick_params(axis='both', which='major',labelsize=20, width=2,length=7)
         plt.grid(True)
         if zero:
             plt.axhline(0,color='black',alpha=0.2,linewidth=8 )
@@ -249,12 +256,12 @@ if __name__=='__main__':
  
  
  
-    grad.grad(var=['Ta C'], by = "H", From =['2014-11-01 00:00:00','2015-04-01 00:00:00'], 
-              To = ['2015-04-01 00:00:00','2015-10-01 00:00:00'], From2=['2015-10-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
+    grad.grad(var=['Ta C'], by = "H", how='mean', From =['2014-11-01 00:00:00','2015-04-01 00:00:00'], 
+              To = ['2015-04-01 00:00:00','2015-11-01 00:00:00'], From2=['2015-11-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
     grad.tsplot(zero=True, quartile=False, outpath="/home/thomas/")
       
-    grad.grad(var=['Ua g/kg'], by = "H", From = ['2014-11-01 00:00:00','2015-04-01 00:00:00'],
-               To = ['2015-04-01 00:00:00','2015-10-01 00:00:00'], From2=['2015-10-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
+    grad.grad(var=['Ev hpa'], how='mean',by = "H", From = ['2014-11-01 00:00:00','2015-04-01 00:00:00'],
+               To = ['2015-04-01 00:00:00','2015-11-01 00:00:00'], From2=['2015-11-01 00:00:00',None], To2=['2016-01-01 00:00:00',None])
     grad.tsplot(zero=True, quartile=False, outpath="/home/thomas/")
 
 

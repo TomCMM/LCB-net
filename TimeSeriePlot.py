@@ -19,23 +19,23 @@ import LCBnet_lib
 from LCBnet_lib import *
 
 
-def TimeSeriePlot(Files, var = 'Ta C', OutPath = '/home/thomas/'):
+def TimeSeriePlot(Files, var = 'Ta C', OutPath = '/home/thomas/', net="LCB"):
     if not isinstance(var, list):
         var = [var]
 
     for v in var:
         for i in Files:
             print i
-            sta=LCB_station(i)
-            sta.TimePlot(var = v)
+            sta=LCB_station(i,net)
+            sta.TimePlot(var = v, outpath=OutPath)
 
 
 if __name__=='__main__':
-    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge_medio/'
 #     Path='/home/thomas/MergeDataThreeshold/'
     OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
-    TimeSeriePlot(Files,var=[ 'Ta C'], OutPath = OutPath)
+    TimeSeriePlot(Files,var=[ 'Rc mm'], OutPath = OutPath)
  
 
 

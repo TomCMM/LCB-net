@@ -10,7 +10,6 @@ import fnmatch
 import copy
 from LCBnet_lib import *
 from scipy import interpolate
-import seaborn as sns
 from pandas.core.frame import DataFrame
 
 
@@ -23,17 +22,15 @@ class ManageDataLCB(object):
     DESCRIPTION
         1) Read data LCB observations, make the file readable by pandas and write a new file
         2) Clean the file and Merge them into a new dataframe
+            Threshold are used on every variables to filter bad values. 
+            For a specific event if one variable exceed a threshold, all the other variables are removed as well.
     """
 
     def __init__(self,InPath,fname,staname=None):
-        """Take The Path and the filname of the raw files folder 
-        
-        NOTE:
-            Threshold:
-                gradient_2min:
-                    by looking at the histogramm of the 2min gradient of temperature
-                    the valor never exceed 3.5C in 2 minutes which correspond to a rain 
-                    event or cold front 
+        """
+        DESCRIPTION
+            Take The Path and the folder name of the raw data 
+
         """
         self.InPath=InPath
         self.fname=fname
@@ -44,115 +41,24 @@ class ManageDataLCB(object):
                         'Pa H':{'Min':850,'Max':920},
                         'Ta C':{'Min':5,'Max':40,'gradient_2min':4},#
                         'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
-                        'Rc mm':{'Min':0,'Max':8},
+                        'Rc mm':{'Min':0,'Max':9},
                         'Sm m/s':{'Min':0,'Max':30},
                         'Dm G':{'Min':0,'Max':360},
                         'Bat mV':{'Min':0.0001,'Max':10000},
                         'Vs V':{'Min':9,'Max':9.40}#'Vs V':{'Min':8.5,'Max':9.5}
                         }
         self.nomenclature = {"Bat":"Bat mV","Dm":"Dm G","Sm":"Sm m/s","Ta":"Ta C","Ua":"Ua %","Pa":"Pa H","Rc":"Rc mm","Vs":"Vs V"}
+    
         self.__read(InPath,fname)
-        self.Header()
-        self.clear()
-
-    def Header(self,type=None):
-        """
-        DESCRIPTION
-            Return the header in function of the type of the file
-        NOTE
-            The file header changed sevral times, especially at the begining when the 
-            file pattern was not yet defined by Nilson
-        """
-        if type ==1:
-            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm,Vs V\r\n'
-            return var
-
-        if type ==2:
-            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Ua %,Pa H,Rc mm,Vs V\r\n'
-            return var
-
-        if self.fname[0] =='C' or self.fname[0] =='c':
-            self.Header_var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n'
-
-        if self.fname[0] == 'H' or self.fname[0] == 'h' :
-            self.Header_var='T_St,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n'
-
-    def nbcol(self):
-        """
-        DESCRIPTION
-            Return the number of column in the header of the file opened
-        """
-        nbcol=len(self.Header_var.split(','))
-        return nbcol
-
-    def __read(self, InPath, fname):
-        """
-        DESCRIPTION
-            Read the raw file
-            check if the data can be read in a dataframe
-            if not it has to be clean, see the function clear
-        """
-        with open(InPath+fname) as f:
-            content = f.readlines()
-        self.content=content
-
-        print("======================================================================================")
-        print('OPEN THE FILE: '+self.fname)
-        try:
-            self.Dataframe=pd.read_csv(self.InPath+self.fname, sep=',',header=True,index_col=0,parse_dates=True)
-            print('The file is Clean - A dataframe has been created')
-        except:
-            print('The file is Dirty! - I cant create a dataframe - Clean before and import again')
-
-    def clear(self):
-        """
-        DESCRIPTION
-            This methods delete all the line which does not fit some criteria
-            At the end it permits to create a data frame readeable by pandas
-        """
-        LineToDel=[]
-        content_clear=self.content
-
-        # Check if the file is empty
-        if not content_clear:
-            print("-> The File is empty")
-            content_clear.insert(0,self.Header_info)
-            content_clear.insert(1,self.Header(type=1))
-            print('New title',content_clear[0])
-        
-        if content_clear[0][0:11] != self.Header_info[0:11]:
-            print("-> Rewrite title info")
-            content_clear.insert(0,self.Header_info)
-            print('New title',content_clear[0])
-
-        if content_clear[1][0:4] != self.Header_var[0:4]:
-            print("-> No Header -> Rewrite Header columns")
-            content_clear.insert(1,self.Header_var)
-
-        for idx,line in enumerate(content_clear[self.NbLineHeader::]):
-            if len(line.split(',')) != self.nbcol() or line[0:1].isdigit() == False or line[-2:]!='\r\n' or len(line.split(',')[0])!=16:
-                print('-> Deleting the line ',idx+self.NbLineHeader," :",line)
-                LineToDel.append(self.NbLineHeader+idx)
-        for i in sorted(LineToDel, reverse=True):
-            del content_clear[i]
-        self.content_clear=content_clear
-        if len(self.content_clear) >2:
-            if  len(content_clear[1].split(',')) > len(content_clear[2].split(',')):
-                print("-> Less data columns than header _> Rewrite header")
-                del content_clear[1]
-                content_clear.insert(1,self.Header(type=2))
-            if len(content_clear[1].split(',')) < len(content_clear[2].split(',')):
-                print("-> More data columns than header -> Rewrite header")
-                del content_clear[1]
-                content_clear.insert(1,self.Header(type=1))
-
+        self.__Header()
+        self.__clear()
 
     def write_clean(self,OutPath,fname):
         """
         DESCRIPTION
             write the dataframe wich has been cleared
         """
-        self.clear()
+        self.__clear()
         fname = fname.upper()
         f = open(OutPath+fname+'clear',"w")
         for line in self.content_clear:
@@ -162,14 +68,14 @@ class ManageDataLCB(object):
     def append_dataframe(self,fileobject):
         """
         DESCRIPTION
-            Append the dataframe together
+            Append the dataframes together
         USERINPUT
              A list of file path with the different files to merge
             exemple: H05XXX240 will be merged with H05XXX245
         """
         try:
-            self.Dataframe=self.Dataframe.append(fileobject.Dataframe).sort_index(axis=0)
-            print("Merging dataframe "+fileobject.fname)
+            self.Dataframe = self.Dataframe.append(fileobject.Dataframe).sort_index(axis=0)
+            print("Merging dataframe " + fileobject.fname)
         except:
             print('It cant merge dataframe')
 
@@ -187,16 +93,20 @@ class ManageDataLCB(object):
         """
         DESCRIPTION
             Apply filter to the dataframe
-        merge_header:
-            to transform the new nomenclature into the newone
+        PARAMETERS:
+            threshold: if True, apply threshold to the dataframe
+            specific: if True, apply specific filter made by hand
+            reindex: if True, reindex to ensure the index continuity
+            gradient: if True, apply filter based on the temporal variation of a variable
+            merge_header:if True, Correct the header nomenclature
         """
         dataframe = self.Dataframe
-        
 
         self.old_dataframe = self.Dataframe.copy()
         print('0'*80)
-        dataframe = dataframe.drop_duplicates()
+        dataframe = dataframe.drop_duplicates() # remove duplicated index lines
 
+        # Check nomenclature
         if merge_header:
             colnames = dataframe.columns
             nomenclature = self.nomenclature
@@ -205,66 +115,44 @@ class ManageDataLCB(object):
                     print("COLNAME: --------------------->",colname,"replaced by ", nomenclature[colname])
                     dataframe[nomenclature[colname]] = dataframe[nomenclature[colname]].combine_first(dataframe[colname])
                     dataframe = dataframe.drop(colname,1)
-
+        
+        # Specific manual filter
         if specific:
             dataframe = self._specific_clean(dataframe)
 
+        # Threshold
         if threshold:
             print'Apply threeshold filter'
             dataframe = self._threshold(dataframe)
 
 
         dataframe = dataframe.convert_objects(convert_numeric=True) # convert the data frame into numeric if not put nan
-        # remove null colomns (e.g. Unnamed)
-        dataframe = dataframe.dropna(axis = 1, how ='all')
+        dataframe = dataframe.dropna(axis = 1, how ='all') # remove null colomns (e.g. Unnamed)
 
-
-        
+        # Reindex
         if reindex:
             dataframe = self._reindex(dataframe)
 
-
+        # Gradient thresholds
         if gradient:
             dataframe = self._grad_threshold(dataframe,'Ta C')
             dataframe = self._grad_threshold(dataframe,'Ua %')
 
-
-
         self.Dataframe = dataframe
         print('0'*80)
 
-    def _reindex(self,dataframe):
-        """
-        Reindex with a 2min created index
-        
-        NOTE
-            The nan are not represented in the graphic 
-            compared to the missing value wich are linearly interpolated on a plot
-            So after reindexing the time serie plot appears differently and this is normal
-            
-            If during a period their is some sparse data, for example 4 or 5 data by day.
-            without nan the serie will look like their is data but it is not the case.
-        """
-        Initime = dataframe.index[0]
-        Endtime = dataframe.index[-1]
-        Initime=pd.to_datetime(Initime)# be sure that the dateset is a Timestamp
-        Endtime=pd.to_datetime(Endtime)
-
-        # remove all nan to be sure that the reindex does not keep bad values
-        dataframe = dataframe.dropna(axis = 0, how ='all') 
-
-        dataframe = dataframe.drop_duplicates() # I do not know which this one does not work properly
-        dataframe = dataframe.groupby(dataframe.index).first()# take the first index encontered. A mthod to drop duuplicate
-        idx=pd.date_range(Initime,Endtime,freq='2min')
-        dataframe = dataframe.reindex(index=idx)
-        return dataframe
-
-    def comparison_clean(self,vars = None, just_clean = False, subplot = False, outpath='/home/thomas/',staname = None, From=None, To=None):
+    def plot_comparison_clean(self,vars = None, just_clean = False, subplot = False, outpath='/home/thomas/',staname = None, From=None, To=None):
         """
         DESCRIPTION
             Plot time serie before and after the data cleaned
-        INPUT
+        PARAMETERS
+            vars: name of the variables to be plotted
             just_clean: True, plot only the cleaned data
+            subplot: if True, make subplots
+            outpath: if not None, save the figure to the indicated path
+            staname: name of the station
+            From: starting date
+            To: final date
         """
         old_dataframe = self.old_dataframe 
         dataframe = self.Dataframe
@@ -272,7 +160,6 @@ class ManageDataLCB(object):
         if From:
             old_dataframe = old_dataframe[From:To]
             dataframe = dataframe[From:To]
-        
         
         if vars == None:
             vars = dataframe.columns
@@ -302,10 +189,133 @@ class ManageDataLCB(object):
                 except ValueError:
                     print "Could not plot surely a problem with the variable: ", str(var), " in the uncleaned dataframe"
 
+    def __read(self, InPath, fname):
+        """
+        DESCRIPTION
+            Read the raw file
+            check if the data can be read in a dataframe
+            if not, it si clean with the function clear()
+        """
+        with open(InPath + fname) as f:
+            content = f.readlines()
+        self.content = content
+
+        print("======================================================================================")
+        print('OPEN THE FILE: '+self.fname)
+        try:
+            self.Dataframe = pd.read_csv(self.InPath+self.fname, sep=',', header=1, index_col=0, parse_dates=True)
+            print('The file is Clean - A dataframe has been created')
+        except:
+            print('The file is Dirty! - I cant create a dataframe - Clean before and import again')
+
+    def __clear(self):
+        """
+        DESCRIPTION
+            This methods delete all the line which does not fit some criteria
+            At the end it permits to create a data frame readeable by pandas
+        """
+        LineToDel=[]
+        content_clear=self.content
+
+        # Check if the file is empty
+        if not content_clear:
+            print("-> The File is empty")
+            content_clear.insert(0,self.Header_info)
+            content_clear.insert(1,self.__Header(type=1))
+            print('New title',content_clear[0])
+        
+        # Check title information
+        if content_clear[0][0:11] != self.Header_info[0:11]:
+            print("-> Rewrite title info")
+            content_clear.insert(0,self.Header_info)
+            print('New title',content_clear[0])
+
+        # Check the header
+        if content_clear[1][0:4] != self.Header_var[0:4]:
+            print("-> No Header -> Rewrite Header columns")
+            content_clear.insert(1,self.Header_var)
+        
+        # Deleting unreadeable lines
+        for idx,line in enumerate(content_clear[self.NbLineHeader::]):
+            if len(line.split(',')) != self.__nbcol() or line[0:1].isdigit() == False or line[-2:]!='\r\n' or len(line.split(',')[0])!=16:
+                print('-> Deleting the line ',idx+self.NbLineHeader," :",line)
+                LineToDel.append(self.NbLineHeader+idx)
+        for i in sorted(LineToDel, reverse=True):
+            del content_clear[i]
+            
+        self.content_clear = content_clear # This should be at the end, why it is not
+        
+        # Check the header
+        if len(self.content_clear) >2:
+            if  len(content_clear[1].split(',')) > len(content_clear[2].split(',')):
+                print("-> Less data columns than header _> Rewrite header")
+                del content_clear[1]
+                content_clear.insert(1,self.__Header(type=2))
+            if len(content_clear[1].split(',')) < len(content_clear[2].split(',')):
+                print("-> More data columns than header -> Rewrite header")
+                del content_clear[1]
+                content_clear.insert(1,self.__Header(type=1))
+
+    def __Header(self,type=None):
+        """
+        DESCRIPTION
+            Return the header in function of the type of the file
+        NOTE
+            The file header changed several times, especially at the begining when the 
+            file pattern was not yet defined by Nilson
+        """
+        if type ==1:
+            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm,Vs V\r\n'
+            return var
+
+        if type ==2:
+            var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Ua %,Pa H,Rc mm,Vs V\r\n'
+            return var
+
+        if self.fname[0] =='C' or self.fname[0] =='c':
+            self.Header_var='T_St,Bat mV,Dm G,Sm m/s,Ta C,Tint C,Ua %,Pa H,Rc mm\r\n'
+
+        if self.fname[0] == 'H' or self.fname[0] == 'h' :
+            self.Header_var='T_St,Bat mV,S_10cm,S_20cm,S_30cm,S_40cm,S_60cm,S_100cm,,\r\n'
+
+    def __nbcol(self):
+        """
+        DESCRIPTION
+            Return the number of column in the header of the file opened
+        """
+        nbcol = len(self.Header_var.split(','))
+        return nbcol
+
+    def _reindex(self,dataframe):
+        """
+        Reindex with a 2min created index
+        
+        NOTE
+            The nan are not represented in the graphic 
+            compared to the missing value wich are linearly interpolated on a plot
+            So after reindexing the time serie plot appears differently and this is normal
+            
+            If during a period their is some sparse data, for example 4 or 5 data by day.
+            without nan the serie will look like their is data but it is not the case.
+        """
+        Initime = dataframe.index[0]
+        Endtime = dataframe.index[-1]
+        Initime=pd.to_datetime(Initime)# be sure that the dateset is a Timestamp
+        Endtime=pd.to_datetime(Endtime)
+
+        # remove all nan to be sure that the reindex does not keep bad values
+        dataframe = dataframe.dropna(axis = 0, how ='all') 
+
+        dataframe = dataframe.drop_duplicates() # I do not know which this one does not work properly
+        dataframe = dataframe.groupby(dataframe.index).first()# take the first index encontered. A mthod to drop duuplicate
+        idx=pd.date_range(Initime,Endtime,freq='2min')
+        dataframe = dataframe.reindex(index=idx)
+        return dataframe
+
     def _threshold(self,dataframe):
         """
         DESCRIPTION
-            Remove all the data aboce the threesholds
+            Remove all the data above the threesholds
         RETURN 
             New clean dataframe
         NOTE
@@ -365,7 +375,7 @@ class ManageDataLCB(object):
 
         return newdataframe 
 
-    def _specific_threshold(self,df,var, var2 = None, threshold=None):
+    def _specific_threshold(self, df, var, var2 = None, threshold=None):
         """
         DESCRIPTION
             do a specific threshold which will only remove a variable and
@@ -380,7 +390,6 @@ class ManageDataLCB(object):
             threshold = self.threshold
         
         if not var2:
-            print "allo"
             df[var][(df[var]<threshold[var]['Min']) | (df[var]>threshold[var]['Max']) ] = np.nan
         else:
             print "cross variable filtering"
@@ -397,38 +406,6 @@ class ManageDataLCB(object):
         gradient = df[var].diff().abs()
         df[var][gradient > threshold[var]['gradient_2min']] = np.nan
         return df
-
-    def _movingaverage(self,df):
-        """
-        DESCRIPTION
-            Remove all the data above a threeshold after moving average
-        RETURN 
-            New clean dataframe
-        NOTE 
-            When the difference between running mean x_window and the data is superior at MavgX then remove the data
-        IMPORTANT
-            Not implemented yet
-        """
-        tr = self.threshold
-        
-        s_window = 5
-        m_window = 30
-        l_window = 180
-        for var in df.columns:
-            try:
-                df = df[(np.abs(pd.rolling_mean(df[var],s_window) - df[var])<tr[var]['MavgS'])]# Small window
-                df = df[(np.abs(pd.rolling_mean(df[var],m_window) - df[var])<tr[var]['MavgM'])]# Medium window
-                df = df[(np.abs(pd.rolling_mean(df[var],l_window) - df[var])<tr[var]['MavgL'])]# Large window
-
-                print('The running mean filter on',[var],' as removed  |---> [',
-                      len(df[(np.abs(pd.rolling_mean(df[var],s_window)-df[var])>tr[var]['MavgS'])]),
-                      ' and ',
-                      len(df[(np.abs(pd.rolling_mean(df[var],m_window)-df[var])>tr[var]['MavgM'])]),
-                      'and',
-                      len(df[(np.abs(pd.rolling_mean(df[var],l_window)-df[var])>tr[var]['MavgL'])])
-                      ,'] data')
-            except KeyError:
-                print('no Mavg threshold for this variable:->  ',var)
 
     def _var_blocked(self, df, var, var2= None):
         """
@@ -475,11 +452,16 @@ class ManageDataLCB(object):
         if self.staname == "C08":
             df[:"2014-09-04 12:32:00"]['Rc mm'] = df[:"2014-09-04 12:32:00"]['Rc mm'].diff(periods=1).abs()
             df["2014-09-17 14:02:00":"2014-10-09 16:10:00"]['Rc mm']  = np.nan
+            df["2014-12-22 00:00:00":"2014-12-24 00:00:00"]['Rc mm']  = np.nan
+
+        if self.staname == "C15":
+            df["2015-09-12 00:00:00":"2015-09-14 00:00:00"]['Rc mm']  = np.nan
 
         if self.staname == "C09":
             df[:"2014-09-04 10:36:00"]['Rc mm'] = df[:"2014-09-04 10:36:00"]['Rc mm'].diff(periods=1).abs()
             df["2014-09-17 13:32:00":"2014-10-09 13:56:00"]['Rc mm'] = np.nan
             df["2014-09-02 20:52:00":"2014-09-05 10:32:00"]['Rc mm'] = np.nan
+
         if self.staname == "C18":
             print "ALLLLO"
             print "o"*130
@@ -522,54 +504,57 @@ class ManageDataLCB(object):
 #====== User Input
 
 if __name__=='__main__':
-#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160216/Extrema20160216'
-#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160216/Clean/'
-#     #====== Find all the clima and Hydro
-#     Files=glob.glob(InPath+"/*/*")
+#===========================================================================
+# 1) Clean the files to be readble by Pandas - padronizado
+#===========================================================================
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160610/Extrema20160610'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160610/Clean/'
+#  
+#     Files=glob.glob(InPath+"/*/*") # Find all the clima and Hydro files
 #     print(Files)
+#      
 #     if not os.path.exists(OutPath):
 #         os.makedirs(OutPath)
 #     for i in Files:
-#         data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i))
-#         print("Writing file "+OutPath+os.path.basename(i))
-#         data.write_clean(OutPath,os.path.basename(i))
+#         data = ManageDataLCB(os.path.dirname(i)+"/", os.path.basename(i))
+#         print("Writing file " + OutPath + os.path.basename(i))
+#         data.write_clean(OutPath, os.path.basename(i))
 
 #===============================================================================
-#  Merge and Filter - Bulk cleanED data
-#===============================================================================
-#===============================================================================
-# Merge the clean files
+# 2) Merge and filter data
 #===============================================================================
     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
-#     OutPath='/home/thomas/'
-#     
-#     From='2015-05-01 00:00:00' 
-#     To='2015-08-01 00:00:00'
-  
+ 
+    From='2014-10-15 00:00:00' 
+    To='2016-06-01 00:00:00'
+     
     if not os.path.exists(OutPath):
         os.makedirs(OutPath)
-         
-    AttSta=att_sta()
-    stations=AttSta.stations(['Ribeirao'])
+            
+    AttSta = att_sta() # Initialise the object with permits to get the attribut of the stations
+    stations = AttSta.stations(['Ribeirao']) # get the stations names
+ 
     for sta in stations:
-        # Permit to find all the find with the extension .TXTclear
         print(sta)
         matches = []
-        datamerge=None
+        datamerge = None
+         
         for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
             for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
-                matches.append(os.path.join(root, filename))    
+                matches.append(os.path.join(root, filename)) 
+    
         for i in matches:
             print(i)
-            data=ManageDataLCB(os.path.dirname(i)+"/",os.path.basename(i),sta)
+            data = ManageDataLCB(os.path.dirname(i)+"/", os.path.basename(i), sta)
             try:
                 datamerge.append_dataframe(data)
             except:
                 datamerge=data
+ 
         datamerge.clean_dataframe()
-        datamerge.comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
-        datamerge.write_dataframe(OutPath,sta+'clear_merge.TXT')
+        datamerge.plot_comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
+        datamerge.write_dataframe(OutPath, sta+'clear_merge.TXT')
 
 
 

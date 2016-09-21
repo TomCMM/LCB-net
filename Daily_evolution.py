@@ -15,11 +15,11 @@ if __name__ == "__main__":
     net.AddFilesSta(AttSta.getatt(AttSta.stations(['Ribeirao']),'InPath'))
     
     From = ["2014-11-01 00:00:00","2015-04-01 00:00:00" ]
-    To = ["2015-04-01 00:00:00 ","2015-10-01 00:00:00 "]
+    To = ["2015-04-01 00:00:00 ","2015-11-01 00:00:00 "]
     
-    From2 = ["2015-10-01 00:00:00 ",None]
+    From2 = ["2015-11-01 00:00:00 ",None]
     To2 = ["2016-01-01 00:00:00 ",None]
 
 
-    net.dailyplot(var = ['Ta C', 'Ua g/kg'], From=From, To=To, From2 = From2, To2=To2, group= "H", labels =['Summer', 'Winter'] , save = True)
+    net.dailyplot(var = ['Ta C', 'Ev hpa'], From=From, To=To, From2 = From2, To2=To2, group= "H", labels =['Summer', 'Winter'] , save = True)
     net.dailyplot(var = ['Rc mm'],how='sum', From=From, To=To, From2 = From2, To2=To2, group= "H", labels =['Summer', 'Winter'] , save = True)

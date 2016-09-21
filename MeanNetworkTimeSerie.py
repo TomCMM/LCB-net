@@ -15,7 +15,7 @@ if __name__=='__main__':
     net=LCB_net()
     net.AddFilesSta(Files)
 
-    net.TimePlot(var = ['Ta C','Ua g/kg','Pa H','Rc mm', 'Sm m/s'],
-                  subplots = True, From = "2014-11-01 00:00:00", To = '2015-08-01 00:00:00')
+    net.TimePlot(var = ['Rc mm'],
+                  subplots = True, From = "2014-11-01 00:00:00", To = '2015-12-01 00:00:00')
 
 

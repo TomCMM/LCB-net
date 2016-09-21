@@ -104,11 +104,11 @@ class Divergence():
 #         V_west = self.net_West.getvarallsta(var=['V m/s'], all=True,From=From, To=To)
 #         V_east = self.net_East.getvarallsta(var=['V m/s'], all=True,From=From, To=To)
 
-        norm_west = self.net_West.getvarallsta(var=['Sm m/s'], all=True,From=From, To=To)
-        theta_west = self.net_West.getvarallsta(var=['Dm G'], all=True,From=From, To=To)
+        norm_west = self.net_West.getvarallsta(var=['Sm m/s'],From=From, To=To)
+        theta_west = self.net_West.getvarallsta(var=['Dm G'],From=From, To=To)
         
-        norm_east = self.net_East.getvarallsta(var=['Sm m/s'], all=True,From=From, To=To)
-        theta_east = self.net_East.getvarallsta(var=['Dm G'], all=True,From=From, To=To)
+        norm_east = self.net_East.getvarallsta(var=['Sm m/s'],From=From, To=To)
+        theta_east = self.net_East.getvarallsta(var=['Dm G'],From=From, To=To)
         
         new_U_west = pd.DataFrame(index=norm_west.index, columns=norm_west.columns) 
         new_U_east = pd.DataFrame(index=norm_east.index, columns=norm_east.columns) 
