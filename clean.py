@@ -13,10 +13,6 @@ from scipy import interpolate
 from pandas.core.frame import DataFrame
 
 
-
-
-
-
 class ManageDataLCB(object):
     """
     DESCRIPTION
@@ -40,7 +36,7 @@ class ManageDataLCB(object):
         self.threshold={
                         'Pa H':{'Min':850,'Max':920},
                         'Ta C':{'Min':5,'Max':40,'gradient_2min':4},#
-                        'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
+                        'Ua %':{'Min':10,'Max':98,'gradient_2min':15},
                         'Rc mm':{'Min':0,'Max':9},
                         'Sm m/s':{'Min':0,'Max':30},
                         'Dm G':{'Min':0,'Max':360},
@@ -360,7 +356,6 @@ class ManageDataLCB(object):
                    or (staname == "C18" and var == "Ua %")\
                    or (staname == "C18" and var == "Rc mm")\
                    or (staname == "C09" and var == "Pa H"):
-                print "specific threshold"
                 
                 newdataframe = self._specific_threshold(newdataframe, var)
             else:
@@ -456,6 +451,8 @@ class ManageDataLCB(object):
 
         if self.staname == "C15":
             df["2015-09-12 00:00:00":"2015-09-14 00:00:00"]['Rc mm']  = np.nan
+            df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
+
 
         if self.staname == "C09":
             df[:"2014-09-04 10:36:00"]['Rc mm'] = df[:"2014-09-04 10:36:00"]['Rc mm'].diff(periods=1).abs()
@@ -463,12 +460,9 @@ class ManageDataLCB(object):
             df["2014-09-02 20:52:00":"2014-09-05 10:32:00"]['Rc mm'] = np.nan
 
         if self.staname == "C18":
-            print "ALLLLO"
-            print "o"*130
             index = df[:"2015-05-08 00:00:00"].index - pd.DateOffset(hours = 3)
             index = index.append(df["2015-05-08 00:00:00":].index)
             df.index = index
-
 
         if self.staname == "C18":
             df = self._var_blocked(df, 'Dm G', 'Sm m/s')
@@ -496,6 +490,9 @@ class ManageDataLCB(object):
 
         if self.staname == "C05":
             df['Ua %'][:"2014-09-17 14:52:00"]= np.nan
+            
+        if self.staname == "C10":
+            df['Ta C'][df['Ta C']> 35]= np.nan
         return df
 
 #===============================================================================
@@ -505,14 +502,14 @@ class ManageDataLCB(object):
 
 if __name__=='__main__':
 #===========================================================================
-# 1) Clean the files to be readble by Pandas - padronizado
+# 1) Clean the files to be readble by Pandas 
 #===========================================================================
-#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160610/Extrema20160610'
-#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20160610/Clean/'
-#  
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20161013/Extrema20161013'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data/Extrema20161013/Clean/'
+#    
 #     Files=glob.glob(InPath+"/*/*") # Find all the clima and Hydro files
 #     print(Files)
-#      
+#        
 #     if not os.path.exists(OutPath):
 #         os.makedirs(OutPath)
 #     for i in Files:
@@ -525,25 +522,26 @@ if __name__=='__main__':
 #===============================================================================
     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/data'
     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
- 
+   
     From='2014-10-15 00:00:00' 
-    To='2016-06-01 00:00:00'
-     
+    To='2016-10-13 00:00:00'
+       
     if not os.path.exists(OutPath):
         os.makedirs(OutPath)
-            
+              
     AttSta = att_sta() # Initialise the object with permits to get the attribut of the stations
     stations = AttSta.stations(['Ribeirao']) # get the stations names
- 
+    stations.append('C03') # add foz
+#     print stations
     for sta in stations:
         print(sta)
         matches = []
         datamerge = None
-         
+            
         for root, dirnames, filenames in os.walk(InPath):# find all the cleared files
             for filename in fnmatch.filter(filenames, sta+'*.TXTclear'):
                 matches.append(os.path.join(root, filename)) 
-    
+       
         for i in matches:
             print(i)
             data = ManageDataLCB(os.path.dirname(i)+"/", os.path.basename(i), sta)
@@ -551,7 +549,7 @@ if __name__=='__main__':
                 datamerge.append_dataframe(data)
             except:
                 datamerge=data
- 
+    
         datamerge.clean_dataframe()
         datamerge.plot_comparison_clean(vars=['Ta C', 'Vs V', 'Ua %', 'Pa H', 'Rc mm', 'Sm m/s', 'Bat mV'], staname=sta)
         datamerge.write_dataframe(OutPath, sta+'clear_merge.TXT')

@@ -11,8 +11,8 @@
 from __future__ import division
 from LCBnet_lib import *
 
-import pandas as pd
-import numpy as np
+# import pandas as pd
+# import numpy as np
 import statsmodels.api as sm
 import itertools
 
@@ -35,7 +35,7 @@ class FillGap():
             Check every variable of every stations and try to fill 
             them with the variables of the two nearest station for every time.
         INPUT
-            From: From where to select the data
+            From: From where to select the dataver
             To: when is the ending
             by: resample the data with the "by" time resolution
             sort_cor, if True sort the selected predictors stations by correlation coefficient
@@ -90,63 +90,59 @@ class FillGap():
                 newdataframe['V m/s'] = station.getData('V m/s',reindex = True, From=From, To=To, by=by, how=how)
                 newdataframe['Ua g/kg'] = station.getData('Ua g/kg',reindex = True, From=From, To=To, by=by, how=how)
                 newdataframe['Theta C'] = station.getData('Theta C',reindex = True, From=From, To=To, by=by, how=how)
+                variables_name = newdataframe.columns
             else:
                 newdataframe = station.getData(var=variables, reindex = True, From=From, To=To, by=by, how=how) # Dataframe which stock the new data of the stations
-
+                variables_name = variables
             # select and sort nearest stations
             selections, selectionsnames = self.__getpredictors_distance(staname, distance)
 
-            if not variables:
-                variables = newdataframe.columns
-            else:
-                variables = variables
-
-            for var in variables:
+            for var in variables_name:
                 print "I"*30
                 print "variable -> " + var
 
                 try:
                     selections, params = self.__sort_predictors_by_corr(station,selections, var, From,To, by,how, constant=constant,
                                                                              selectionsnames=selectionsnames, sort_cor=sort_cor, cor_lim=cor_lim)
-    
-                        
+     
+                         
                     selections_iter = iter(selections)
                     params_iter = iter(params)
     #                 print newdataframe
                     idxmissing = newdataframe[var][newdataframe[var].isnull() == True].index # slect where their is missing data
-                    
+                     
                     while len(idxmissing) > 0:
                         print ("Their is  [" + str(len(idxmissing)) + "] events missing")
-                        
+                         
                         try: # Try if their is still other stations to fill with
                             selection = selections_iter.next()
                             param = params_iter.next()
                         except StopIteration:
                             print "NO MORE SELECTED STATIONS"
                             break
-                        
+                         
                         try:
                             Y = station.getData(var, From=From,To=To,by=by, how=how) # variable to be filled
                             X1 = selection[0].getData(var, From=From,To=To,by=by, how=how) # stations variable used to fill
                             X2 = selection[1].getData(var, From=From,To=To,by=by, how=how)# stations variable used to fill
-                            
+                             
                             select = pd.concat([X1, X2],keys=['X1','X2'],axis=1, join='inner').dropna()
-                            
-    
+                             
+     
                             if constant:
                                 newdata = param[0] + param[1]*select['X1'] + param[2]*select['X2'] # reconstruct the data
                             else:
                                 newdata = param[0]*select['X1'] + param[1]*select['X2'] # reconstruct the data
-    
+     
                             newdataframe.loc[idxmissing,var] = newdata.loc[idxmissing, var]
                             idxmissing = newdataframe[var][newdataframe[var].isnull() == True].index # slect where their is missing data
-    
-    
+     
+     
                         except KeyError:
                             print "&"*60
                             print('Selected stations did not fill any events')
                 except ValueError:
-                    print('The variable '+var+ "Does not exist to do the multilinear regression ")
+                    print('The variable '+var+ "Does not exist or no data to do the multilinear regression ")
                     
                     if plot == True:
                         df = pd.concat([Y,X1,X2,newdata,newdataframe[var]], keys=['Y','X1','X2','estimated data','Estimated replaced'],axis=1, join='outer')
@@ -154,11 +150,16 @@ class FillGap():
     
             print ("Their is  [" + str(len(idxmissing)) + "] FINALLY events missing")
             # Recalculate the wind direction and speed from the U an V components
-            if newdataframe.columns.isin(['U m/s', 'V m/s']):
+            
+            try:
                 speed,dir = cart2pol(newdataframe['U m/s'],newdataframe['V m/s'])
                 newdataframe['Dm G'] = dir
                 newdataframe['Sm m/s'] = speed
-
+            except ValueError:
+                print 'No wind found in the dataframe'
+            except KeyError:
+                print 'No wind found in the dataframe'
+                
             self.newdataframes[staname] = newdataframe
 
     def WriteDataFrames(self, Outpath):
@@ -185,11 +186,13 @@ class FillGap():
         
         """
 
-        stanames = distance[staname]
-        del stanames[staname] # remove the station to be fill from the dataframe
-        stanames= stanames.sort_values()
-        stations = self.network.getsta(stanames.index.values)
-        station = self.network.getsta(staname)
+
+        distfromsta = distance[staname]
+        del distfromsta[staname] # remove the station to be fill from the dataframe
+        distfromsta= distfromsta.sort_values()
+
+        stations = self.network.getsta(distfromsta.index.values)
+#         station = self.network.getsta(staname)
         
         # Only 3 closest stations
 #         sel1 = [ (i,e) for i,e in zip(stations[0:2], stations[1:3])] # selction predictors with spacing 1
@@ -230,29 +233,39 @@ class FillGap():
         scores_corel = pd.DataFrame(index = np.arange(0,len(selections)), columns=['corel', 'selections', 'params', 'selectionname']) #correlation of each selections and variables
 
         for i, (selection, selectionname) in enumerate(zip(selections, selectionsnames)):
-            Y = station.getData(var, From=From,To=To, by=by, how=how) # variable to be filled
-            X1 = selection[0].getData(var, From=From,To=To, by=by, how=how) # stations variable used to fill
-            X2 = selection[1].getData(var, From=From,To=To, by=by, how=how)# stations variable used to fill
- 
-            data=pd.concat([Y, X1, X2],keys=['Y','X1','X2'],axis=1, join='outer').dropna()
-            
-            est = self.__MLR(data[['X1','X2']], data['Y'], constant=constant)
-            rsquared = est.rsquared
-
-            scores_corel.loc[i, 'corel'] = rsquared
-            scores_corel.loc[i, 'selections'] = selection
-            scores_corel.loc[i, 'selectionname'] =selectionname
-            
-            if constant:
-                scores_corel.loc[i, 'params'] = [est.params[0], est.params[1], est.params[2]]
-            else:
-                scores_corel.loc[i, 'params'] = [est.params[0], est.params[1]]
+            try:
+                Y = station.getData(var, From=From,To=To, by=by, how=how) # variable to be filled
+                X1 = selection[0].getData(var, From=From,To=To, by=by, how=how) # stations variable used to fill
+                X2 = selection[1].getData(var, From=From,To=To, by=by, how=how)# stations variable used to fill
+     
+                data=pd.concat([Y, X1, X2],keys=['Y','X1','X2'],axis=1, join='outer').dropna()
+                
+                est = self.__MLR(data[['X1','X2']], data['Y'], constant=constant)
+                rsquared = est.rsquared
     
+                scores_corel.loc[i, 'corel'] = rsquared
+                scores_corel.loc[i, 'selections'] = selection
+                scores_corel.loc[i, 'selectionname'] =selectionname
+                
+                if constant:
+                    scores_corel.loc[i, 'params'] = [est.params[0], est.params[1], est.params[2]]
+                else:
+                    scores_corel.loc[i, 'params'] = [est.params[0], est.params[1]]
+                
+            except ValueError:
+                print 'No data to do the multilinear regression. Put correlation = 0'
+                scores_corel.loc[i, 'selections'] = selection
+                scores_corel.loc[i, 'selectionname'] =selectionname
+                scores_corel.loc[i, 'corel'] = 0
+                scores_corel.loc[i, 'params'] = np.nan
+
         if sort_cor:
             scores_corel = scores_corel.sort_values('corel',ascending=False )
         
         if cor_lim:
             scores_corel = scores_corel[scores_corel['corel'] > cor_lim]
+        else:
+            scores_corel = scores_corel[scores_corel['corel'] > 0]
         
         scores_corel.index = np.arange(0,len(scores_corel.index))
         selections = scores_corel['selections'].values
@@ -307,7 +320,33 @@ class FillGap():
 if __name__=='__main__':
 
 #===============================================================================
-# Bootstrap data
+# Bootstrap data - article
+#===============================================================================
+#     InPath ='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
+#     OutPath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#     Files = glob.glob(InPath+"*")
+#     
+#     net = LCB_net()
+#     AttSta = att_sta()
+#     AttSta.setInPaths(InPath)
+#     stanames = AttSta.stations(['Ribeirao'])
+#     distance = AttSta.dist_matrix(stanames)
+# 
+#     staPaths = AttSta.getatt(stanames , 'InPath')
+#     net.AddFilesSta(staPaths)
+# 
+#     From='2014-10-15 00:00:00' 
+#     To='2016-08-01 00:00:00'
+#    
+#     gap = FillGap(net)
+#     gap.fillstation([], all = True, From=From, To=To, by='H', how='mean',
+#                     summary=False, plot=False, distance=distance, constant=True, sort_cor=False)
+#   
+#     gap.WriteDataFrames(OutPath)
+
+
+#===============================================================================
+# Bootstrap data - article
 #===============================================================================
     InPath ='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
     OutPath = '/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
@@ -317,20 +356,21 @@ if __name__=='__main__':
     AttSta = att_sta()
     AttSta.setInPaths(InPath)
     stanames = AttSta.stations(['Ribeirao'])
+    stanames.remove('C03')
     distance = AttSta.dist_matrix(stanames)
 
     staPaths = AttSta.getatt(stanames , 'InPath')
     net.AddFilesSta(staPaths)
 
-    From='2014-10-15 00:00:00' 
-    To='2016-08-01 00:00:00'
+    From='2015-03-01 00:00:00' 
+    To='2016-06-01 00:00:00'
    
     gap = FillGap(net)
     gap.fillstation([], all = True, From=From, To=To, by='H', how='mean',
-                    summary=False, plot=False, distance=distance, constant=True, sort_cor=False)
+                    summary=False, plot=False, distance=distance, constant=True, sort_cor=True)
   
     gap.WriteDataFrames(OutPath)
-#     
+
 
 
 
@@ -649,43 +689,43 @@ if __name__=='__main__':
 # Clean Full
 #===============================================================================
  
-    InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-    OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
-         
-         
-    Files=glob.glob(InPath+"*")
-         
-    #     threshold={
-    #                 'Pa H':{'Min':850,'Max':920},
-    #                 'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
-    #                 'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
-    #                 'Rc mm':{'Min':0,'Max':8},
-    #                 'Sm m/s':{'Min':0,'Max':30},
-    #                 'Dm G':{'Min':0,'Max':360},
-    #                 'Bat mV':{'Min':0.0001,'Max':10000},
-    #                 'Vs V':{'Min':9,'Max':9.40}}
-         
-    for f in Files:
-        print f
-        if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new/C15.TXT":
-            df = pd.read_csv(f, sep=',', index_col=0,parse_dates=True)
-            print df
-            df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
-            df['Ta C'] = df['Ta C'].fillna(method='pad')
-            df['Ua %'][(df['Ua %']<=0) | (df['Ua %']>=100) ] = np.nan
-            df['Ua %'] = df['Ua %'].fillna(method='pad')
-            df['Ua g/kg'][(df['Ua g/kg']<0) | (df['Ua g/kg']>25) ] = np.nan
-            df['Ua g/kg'] = df['Ua g/kg'].fillna(method='pad')
-            df.to_csv("/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new_2/C15.TXT")
-        if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new/C10.TXT":
-            print "allo"
-            df = pd.read_csv(f, sep=',', index_col=0, parse_dates=True)
-            df['Ta C'][(df['Ta C']<0) | (df['Ta C']>36) ] = np.nan
-            df['Ua %'][(df['Ua %']<0) | (df['Ua %']>100) ] = np.nan
-            df['Ua g/kg'][(df['Ua g/kg']<0) | (df['Ua g/kg']>25) ] = np.nan
-            df['Ua g/kg'] = df['Ua g/kg'].fillna(method='pad')
-            df['Ua %'] = df['Ua %'].fillna(method='pad')
-            df.to_csv("/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new_2/C10.TXT")
+#     InPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#     OutPath='/home/thomas/PhD/obs-lcb/LCBData/obs/Full/'
+#          
+#          
+#     Files=glob.glob(InPath+"*")
+#          
+#     #     threshold={
+#     #                 'Pa H':{'Min':850,'Max':920},
+#     #                 'Ta C':{'Min':5,'Max':40,'gradient_2min':4},
+#     #                 'Ua %':{'Min':0.0001,'Max':100,'gradient_2min':15},
+#     #                 'Rc mm':{'Min':0,'Max':8},
+#     #                 'Sm m/s':{'Min':0,'Max':30},
+#     #                 'Dm G':{'Min':0,'Max':360},
+#     #                 'Bat mV':{'Min':0.0001,'Max':10000},
+#     #                 'Vs V':{'Min':9,'Max':9.40}}
+#          
+#     for f in Files:
+#         print f
+#         if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new/C15.TXT":
+#             df = pd.read_csv(f, sep=',', index_col=0,parse_dates=True)
+#             print df
+#             df['Ta C'][(df['Ta C']<5) | (df['Ta C']>35) ] = np.nan
+#             df['Ta C'] = df['Ta C'].fillna(method='pad')
+#             df['Ua %'][(df['Ua %']<=0) | (df['Ua %']>=100) ] = np.nan
+#             df['Ua %'] = df['Ua %'].fillna(method='pad')
+#             df['Ua g/kg'][(df['Ua g/kg']<0) | (df['Ua g/kg']>25) ] = np.nan
+#             df['Ua g/kg'] = df['Ua g/kg'].fillna(method='pad')
+#             df.to_csv("/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new_2/C15.TXT")
+#         if f == "/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new/C10.TXT":
+#             print "allo"
+#             df = pd.read_csv(f, sep=',', index_col=0, parse_dates=True)
+#             df['Ta C'][(df['Ta C']<0) | (df['Ta C']>36) ] = np.nan
+#             df['Ua %'][(df['Ua %']<0) | (df['Ua %']>100) ] = np.nan
+#             df['Ua g/kg'][(df['Ua g/kg']<0) | (df['Ua g/kg']>25) ] = np.nan
+#             df['Ua g/kg'] = df['Ua g/kg'].fillna(method='pad')
+#             df['Ua %'] = df['Ua %'].fillna(method='pad')
+#             df.to_csv("/home/thomas/PhD/obs-lcb/LCBData/obs/Full_new_2/C10.TXT")
 
 
     #===============================================================================

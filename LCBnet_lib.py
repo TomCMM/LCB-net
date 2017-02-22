@@ -2,27 +2,22 @@
 # For the math/tex font be the same than matplotlib
 #===============================================================================
 
-
 from __future__ import division
 import math
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import operator
 import os
 import glob
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import fnmatch
-import copy
-from scipy import interpolate
-from scipy import stats
-import datetime
+# import fnmatch
+# import copy
+# from scipy import interpolate
+# from scipy import stats
+# import datetime
 from geopy.distance import vincenty
 import re
 from scipy.spatial import distance
-
 
 def PolarToCartesian(norm,theta, rot=None):
     """
@@ -39,7 +34,6 @@ def PolarToCartesian(norm,theta, rot=None):
         U=norm*np.cos(map(math.radians,-theta+270+rot))
         V=norm*np.sin(map(math.radians,-theta+270+rot))
     return U,V
-
 
 class Ink():
     """
@@ -105,7 +99,6 @@ class Ink():
             print " "*30 + string
             print "-"*60
 
-
 def merge_dicts(*dict_args):
     '''
     Given any number of dicts, shallow copy and merge into a new dict,
@@ -115,7 +108,6 @@ def merge_dicts(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
-
 
 def cart2pol(u, v):
     """
@@ -131,7 +123,6 @@ def cart2pol(u, v):
 #===============================================================================
 # Analysis - Parameters 
 #===============================================================================
-
 
 class man(object):
     """
@@ -178,7 +169,7 @@ class man(object):
         """
         need for recalculating
         """
-        return self.getvar('Pa H')
+#         return self.getvar('Pa H')
 
     def __Es(self):
         """
@@ -415,14 +406,14 @@ class man(object):
         # Resample
         #=======================================================================
 
-        
+
         if by != None:
 #             data=data.resample(by, how = how)
             if how=='sum':
-                data=data.resample(by, how = 'sum')
+                data=data.resample(by).sum()
 #                 data=data.resample(by,how=lambda x: x.values.sum()) # This method keep the NAN
             if how=='mean':
-                data=data.resample(by, how='mean') # This method keep the NAN
+                data=data.resample(by).mean() # This method keep the NAN
 
 #         print data
         #===============================================================================
@@ -513,6 +504,7 @@ class man(object):
                 df_ = pd.DataFrame(index=data.index, columns=[var])
                 df_.fillna(np.nan)
                 return df_[var]
+    
 
     def getvar(self,varname,From=None,To=None,rainfilter=None, recalculate=False):
         """
@@ -541,7 +533,7 @@ class man(object):
                 df_ = pd.DataFrame(index=varindex, columns=[varname])
                 df_.fillna(np.nan)
                 var=self.getvarRindex(varname,df_[varname])
-                print self.Data.columns
+#                 print self.Data.columns
                 print('This variable cant be calculated->  '+ varname)
                 return  var
         else:
@@ -561,13 +553,12 @@ class man(object):
                     df_ = pd.DataFrame(index=varindex, columns=[varname])
                     df_.fillna(np.nan)
                     var=self.getvarRindex(varname,df_[varname])
-                    print self.Data.columns
+#                     print self.Data.columns
                     print('This variable cant be calculated')
                     return  var
 
         if rainfilter == True:
             return self.__rainfilter(var)
-
 
 class stats(object):
     """
@@ -584,7 +575,6 @@ class stats(object):
 #===============================================================================
 # Station
 #===============================================================================
-
 
 class AttVar(object):
     """
@@ -640,7 +630,6 @@ class AttVar(object):
                 raise KeyError('The parameter' + attname + ' do not exist')
         return att
 
-
 class att_sta(object):
     """
     DESCRIPTION
@@ -649,24 +638,21 @@ class att_sta(object):
     params:
         Path_att: path of thecsv file with all the metadata
     """
-    def __init__(self, Path_att="/home/thomas/PhD/obs-lcb/staClim/metadata_allnet.csv"):
-        self.__attributes =pd.read_csv(Path_att, index_col=0)
-        self.__stapos=self.__attributes.T.to_dict('dict')
+    def __init__(self, Path_att="/home/thomas/PhD/obs-lcb/staClim/metadata_allnet_select.csv"):
+        self.attributes =pd.read_csv(Path_att, index_col=0)
 
     def addatt(self, df = None, path_df=None):
         """
         DESCRIPTION
             add a dataframe of station attribut to the already existing 
         """
-        attributes = self.__attributes
+        attributes = self.attributes
         if path_df:
             df = pd.read_csv(path_df, index_col=0)
         
+
         newdf = pd.concat([attributes, df], join='outer', axis=1)
-        
-        self.__attributes = newdf
-        self.__stapos=self.__attributes.T.to_dict('dict')
-        print self.__attributes
+        self.attributes = newdf
       
     def sortsta(self,sta,latlon):
         """
@@ -688,7 +674,7 @@ class att_sta(object):
             staname.append(i[0])
         return {'stanames':staname,'metadata':metadata}
 
-    def stations(self,values=None, all=None, params={}):
+    def stations(self,values=None, all=None, params=None):
         """
         Return the name of the stations corresponding to a particular parameter
         all: True, return all stations in parameters
@@ -698,35 +684,32 @@ class att_sta(object):
         """
          
         if all:
-            return self.__stapos.keys()
+            return self.attributes.index
         
         if type(values) is not list:
             raise TypeError('Must be a list')
     
         sta = [ ]
-        if values:
-            
-            for staname in self.__stapos:
-          
-#                 if all (k in self.__stapos[staname].values() for k in values):
-#                     sta.append(staname)
+        if values: 
+            for staname in self.attributes.index:
                 l = []
                 for k in values:
-                    if k in self.__stapos[staname].values():
+                    if k in self.attributes.loc[staname].values:
                         l.append(True)
 
                 if len(l) == len(values): # I really dont know why using all does not work
                     sta.append(staname)
-        
-        for param in params.keys():
-            if sta !=[]:
-                attribut = self.__attributes.loc[sta]
-            else:
-                attribut = self.__attributes
 
-            if param in self.__attributes.keys():
-                sta = attribut[(attribut[param]> params[param][0]) & (attribut[param]< params[param][1])]
-                sta = sta.index.values.tolist()
+        if params:
+            for param in params.keys():
+#                 if sta !=[]:
+                attribut = self.attributes.loc[sta,:]
+#                 else:
+#                     attribut = self.attributes
+                if param in self.attributes.columns.values:
+
+                    sta = attribut[(attribut[param]> params[param][0]) & (attribut[param]< params[param][1])]
+                    sta = sta.index.values.tolist()      
         return sta
 
     def setatt(self,staname, newatt, newvalue):
@@ -735,25 +718,26 @@ class att_sta(object):
             insert a new value of a new attribut corresponding at the specific station
         """
         try:
-            self.__stapos[staname][newatt] = newvalue
-#             self.__attributes.append(newatt)
+            self.attributes.loc[staname, newatt] = newvalue
         except KeyError:
-            print staname
-            raise KeyError('this station do not exist')
+            pass
+#             print ("station %s does not have attribut in the metadata table selected"% (staname))
 
     def showatt(self):
-        print(self.__stapos)
+        print(self.attributes)
 
     def getatt(self,stanames,att):
         """
         INPUT
             staname : list. name of the stations 
             att : scalar. name of the attribut
+            all: return the entire dataframe
         Return 
             return attributs in a list
         TODO
             just return a dictionnary
         """
+
 
         staatt = [ ]
         if type(stanames) != list:
@@ -762,15 +746,16 @@ class att_sta(object):
                     stanames = [stanames]
             except:
                 raise
+#         print self.attributes['st68']
         
         for staname in stanames:
-#             print staname
-#             print self.__stapos[staname]
             try:
-                staatt.append(self.__stapos[staname][att])
+                staatt.append(self.attributes.loc[staname,att])
             except KeyError:
-                
                 print 'The parameter ' + att + ' do not exist for ' + staname
+                raise
+
+        # drop nan attribute
         return staatt
 
     def setInPaths(self,dirInPath):
@@ -865,10 +850,8 @@ class att_sta(object):
         """
         lats = self.getatt(stanames, 'Lat')
         lons = self.getatt(stanames, 'Lon')
-        print lats
         coords = []
         coords  = [(lat, lon) for lat,lon in zip(lats, lons)]
-        print coords
         dist = distance.cdist(coords, coords, 'euclidean')
         df_dist = pd.DataFrame(dist, index=stanames,columns=stanames)
         
@@ -878,10 +861,8 @@ class att_sta(object):
         """
         Save the dictionnary of parameter as a dataframe
         """
-        df = pd.DataFrame(self.__stapos)
+        df = pd.DataFrame(self.attributes)
         df = df.T
-        print params_out
-        print df.columns
         if params_out:
             df = df[params_out]
         if stanames:
@@ -981,7 +962,6 @@ class Plots():
             else:
                 plt.savefig(outpath+v[0:2]+"_dailyPlot.svg", transparent=True)
 
-
 class LCB_station(man, Plots):
     """
     DESCRIPTION
@@ -999,6 +979,7 @@ class LCB_station(man, Plots):
         """
         self.para={
         }
+        
         self.Data = self.__read(InPath, net=net, clean=clean)
         
 
@@ -1024,7 +1005,6 @@ class LCB_station(man, Plots):
             clean if the data are clean or not
         """
         self.setpara("InPath",InPath)
-        print os.path.basename(InPath)
         self.setpara("dirname", os.path.dirname(InPath))
         
         self.setpara("filename", os.path.basename(InPath))
@@ -1073,7 +1053,7 @@ class LCB_station(man, Plots):
                                'Td max', 'Td min', 'Pa H', 'Pamax H', 'Pamin H', 'Sm m/s', 'Dm G',
                                'Smgust m/s', 'Rad kJ/m2', 'Rc mm' ]
                 del df['ID']
-            df.index = df.index - pd.Timedelta(hours=3) # UTC
+            df.index = df.index - pd.Timedelta(hours=3) # UTC Once it is clean it is 
             self.setpara("stanames", os.path.basename(InPath)[-8:-4])
             self.setpara('by','1H')
 
@@ -1105,7 +1085,7 @@ class LCB_station(man, Plots):
                     df.columns = ['type', 'Sm m/s', "Dm G", 'Rad2 W/m2', 'Ta C', 'Ua %','???', 'Rc mm']
                 else:
                     df.columns = ['type', 'Sm m/s', 'Sm10m m/s', "Dm G", 'Rad W/m2', 'Rad2 W/m2', 'FG W/m2', 'Ua %',
-                               'Ta C', 'Tasoil1 C', 'Tasoil2 C', 'Tasoil3 C', 'Pa mbar', 'SH %', 'Rc mm']
+                               'Ta C', 'Tasoil1 C', 'Tasoil2 C', 'Tasoil3 C', 'Pa H', 'SH %', 'Rc mm']
                 
                 # replace missing value with Nan
                 df.replace(-6999, np.NAN, inplace=True)
@@ -1114,12 +1094,26 @@ class LCB_station(man, Plots):
             self.setpara("stanames", os.path.basename(InPath)[:-4])
             self.setpara('by','1H')
 
+        if net == 'svg':
+            df = pd.read_csv(InPath, index_col=0, parse_dates=True )
+#             df.index = df.index + pd.Timedelta(hours=2) # UTC Once it is clean it is 
+            df.columns = ['Ta C', "Ua %", 'Pa kpa', 'Sm m/s', 'Dm G', 'Rc mm', 'Rad Wm/2']
+            self.setpara("stanames", 'svg')
+            self.setpara('by','30min')
+        
+        if net == 'peg':
+            df = pd.read_csv(InPath, index_col=1, header=None, parse_dates=True)
+#             df.index = df.index + pd.Timedelta(hours=2) # UTC Once it is clean it is 
+            df.columns = ['i','Ta C']
+            del df['i']
+            self.setpara("stanames", 'peg')
+            self.setpara('by','30min')
         
         return df
             
     def __poschar(self):
         AttSta = att_sta()
-        attributes = AttSta._att_sta__attributes
+        attributes = AttSta.attributes
         try:
             for att in attributes:
                 self.setpara(att,AttSta.getatt(self.getpara('stanames'), att))
@@ -1190,7 +1184,6 @@ class LCB_station(man, Plots):
             try:
                 if key == None:
                     oldpara = self.para[name]
-                    print oldpara
                     oldpara.append(value)
                 else:
                     oldpara = self.para[name]
@@ -1216,7 +1209,6 @@ class LCB_station(man, Plots):
             print "My net: ",self.my_net
         else:
             print "i dont belong to any net"
-
 
 class LCB_net(LCB_station):
     def __init__(self):
@@ -1296,7 +1288,7 @@ class LCB_net(LCB_station):
             net.getsta('',all=True,sorted='Lon')
             net.getsta('',all=True,sorted='Lon', filter =['West'])
         """
-        print staname
+        
         
         
         if type(staname) != list:
@@ -1380,12 +1372,22 @@ class LCB_net(LCB_station):
 #         for guy in self.getpara('guys'):
 #             self.__update(guy)
 
-    def AddFilesSta(self,Files, net='LCB', clean=True):
+    def AddFilesSta(self,files, net='LCB', clean=True):
+        """
+        Add stations to the network
+        input: list of data path
+        
+        """
         print('Adding ')
-        for i in Files:
-#             print(i)
-            sta=LCB_station(i, net=net, clean=clean)
+        print files
+        for file in files:
+            print file
+#             try:
+            sta=LCB_station(file, net=net, clean=clean)
             self.add(sta)
+#             except AttributeError:
+#                 print file
+#                 print "Could not add station to the network"
         print "#"*80
         print "Network created wit sucess!"
         print "#"*80
@@ -1535,7 +1537,6 @@ class LCB_net(LCB_station):
 #             self.min=Data
 #             self.max=Data
 
-
 class LCBplot():
     def __init__(self,):
         """
@@ -1644,14 +1645,7 @@ class LCBplot():
         return levels
 
 
-
-
-
-
-
-
-
-    
+ 
 # 
 # 
 # 

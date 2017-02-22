@@ -454,8 +454,8 @@ if __name__=='__main__':
     data = irr.data_obs
     data.to_csv('/home/thomas/irr.csv')
         
-#     inpath_sim='/home/thomas/Irradiance_rsun_lin2_lag0_glob_df.csv'
-#     irr.read_sim(inpath_sim)
+    inpath_sim='/home/thomas/Irradiance_rsun_lin2_lag0_glob_df.csv'
+    irr.read_sim(inpath_sim)
 #       
 # #     #===========================================================================
 # #     # Quantiles plot

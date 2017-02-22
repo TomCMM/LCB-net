@@ -31,11 +31,11 @@ def TimeSeriePlot(Files, var = 'Ta C', OutPath = '/home/thomas/', net="LCB"):
 
 
 if __name__=='__main__':
-    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge_medio/'
+    Path='/home/thomas/PhD/obs-lcb/LCBData/obs/Merge/'
 #     Path='/home/thomas/MergeDataThreeshold/'
     OutPath='/home/thomas/'
     Files=glob.glob(Path+"*")
-    TimeSeriePlot(Files,var=[ 'Rc mm'], OutPath = OutPath)
+    TimeSeriePlot(Files,var=['Ta C'], OutPath = OutPath)
  
 
 
