@@ -638,7 +638,7 @@ class att_sta(object):
     params:
         Path_att: path of thecsv file with all the metadata
     """
-    def __init__(self, Path_att="/home/thomas/PhD/obs-lcb/staClim/metadata_allnet_select.csv"):
+    def __init__(self, Path_att="/home/thomas/phd/obs/staClim/metadata/metadata_allnet_select.csv"):
         self.attributes =pd.read_csv(Path_att, index_col=0)
 
     def addatt(self, df = None, path_df=None):

@@ -12,7 +12,7 @@ import pandas as pd
 import glob
 import datetime
 import matplotlib.pyplot as plt
-from LCBnet_lib import *
+from clima_lib.LCBnet_lib import *
 from grad_stations import Gradient
 from divergence import Divergence 
 from LapseRate import AltitudeAnalysis
