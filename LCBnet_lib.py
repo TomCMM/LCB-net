@@ -18,107 +18,7 @@ import pandas as pd
 from geopy.distance import vincenty
 import re
 from scipy.spatial import distance
-
-def PolarToCartesian(norm,theta, rot=None):
-    """
-    Transform polar to Cartesian where 0 = North, East =90 ....
-    From where the wind is blowing !!!!!
-    
-    ARG:
-        rot: Rotate the axis of an angle in degree
-    """
-    if not rot:
-        U=norm*np.cos(map(math.radians,-theta+270))
-        V=norm*np.sin(map(math.radians,-theta+270))
-    else:
-        U=norm*np.cos(map(math.radians,-theta+270+rot))
-        V=norm*np.sin(map(math.radians,-theta+270+rot))
-    return U,V
-
-class Ink():
-    """
-    DESCRIPTION
-        function to display a string in the monitor with specified format
-    INPUT
-        level: 0, MAIN TITLE should be use for class
-                1, Title, should be use for methods
-                2, sub title should be use for loops
-                'all', print all type of level
-    """
-    def __init__(self,*args):
-        nblevel = 4
-        string = args[0]
-
-        if len(args)>1:
-            level = args[1]
-        else:
-            level = nblevel
-
-        if len(args)>2:
-            kwargs = args[2]
-            
-        else:
-            kwargs = "donotexist"
-
-        if kwargs:
-            if 'v' in kwargs:
-                if level <= kwargs['v'] or kwargs['v']=='all':
-                    self._print(string, level)
-                else:
-                    pass
-        elif kwargs == "donotexist":
-            self._print(string, level)
-
-
-    def _print(self,string, level):
-        string = str(string)
-        if level == 0:
-            print "0"*120
-            print "0"*120
-            print " "*60 + string.upper()
-            print "0"*120
-            print "0"*120
-    
-        elif level == 1:
-            print "o"*60
-            print " "*20 + string.upper()
-            print "o"*60
-    
-        elif level == 2:
-            print "="*60
-            print " "*20 + string.upper()
-            print "="*60
-    
-        elif level == 3:
-            print "-"*60
-            print " "*20 + string
-            print "-"*60
-    
-        elif level == 4:
-            print "-"*60
-            print " "*30 + string
-            print "-"*60
-
-def merge_dicts(*dict_args):
-    '''
-    Given any number of dicts, shallow copy and merge into a new dict,
-    precedence goes to key value pairs in latter dicts.
-    '''
-    result = {}
-    for dictionary in dict_args:
-        result.update(dictionary)
-    return result
-
-def cart2pol(u, v):
-    """
-    From where the wind is blowing !!!!!
-    """
-    rho = np.sqrt(u**2 + v**2)
-    theta = np.arctan2(-v,-u)*(180/np.pi)
-    theta[theta < 0 ] = theta[theta < 0 ]+360
-    theta = (360 - theta) +90
-    theta[(theta <= 450) & (theta >360) ] = theta[(theta <= 450) & (theta >360) ]-360
-    return rho, theta
+from toolbox.geo import * 
 
 #===============================================================================
 # Analysis - Parameters 
@@ -144,15 +44,17 @@ class man(object):
               'Ta C':self.__T,
               'Sm m/s':self.__Sm,
               'Pa H':self.__Pa,
-              'Ua %':self.__Ua
+              'Ua %':self.__Ua,
+              "Rad w/m2":self.__radw
               }
-        
         return module[var]
+
     def __T(self):
         """
         need for recalculating
         """
         return self.getvar('Ta C')
+
     def __Ua(self):
         """
         need for recalculating
@@ -234,6 +136,17 @@ class man(object):
         """
         U,V = PolarToCartesian(self.getvar('Sm m/s'), self.getvar('Dm G'))
         return V
+
+    def __radw(self):
+        """
+        DESCRIPTION
+            Input the radiation in W kj/m2 (from inmet stations)
+            and return in w/m2
+        """
+        data = self.getvar('Rad kJ/m2')
+        data = (data * 1000) / 3600.
+        return data
+
 
     def getvarRindex(self,varname,var):
         Initime=self.getpara('From')
@@ -505,7 +418,6 @@ class man(object):
                 df_.fillna(np.nan)
                 return df_[var]
     
-
     def getvar(self,varname,From=None,To=None,rainfilter=None, recalculate=False):
         """
         DESCRIPTION
@@ -559,18 +471,6 @@ class man(object):
 
         if rainfilter == True:
             return self.__rainfilter(var)
-
-class stats(object):
-    """
-    Contains some module to perform statistics
-    """
-    def __init__(self):
-        pass
-    
-    def PCA(self, var=['Ta C'], by='H'):
-        
-        
-        pass
     
 #===============================================================================
 # Station
@@ -598,6 +498,7 @@ class AttVar(object):
                      'Ua %':{'longname':'Relative humidity (%)'},
                      'Ua g/kg':{'longname':'Specific humidity (g/kg)','longname_latex':'Specific humidity $(g.kg^{-1})$'},
                      'Pa H':{'longname':'Pressure (H)'},
+                     'Rad w/m2':{'longname':'Solar radiation (W/m2)'},
                      }
 
     def showatt(self):
@@ -639,6 +540,14 @@ class att_sta(object):
         Path_att: path of thecsv file with all the metadata
     """
     def __init__(self, Path_att="/home/thomas/phd/obs/staClim/metadata/metadata_allnet_select.csv"):
+
+        print "**"*10
+        print 'METADATA FILE USED:'
+        print Path_att
+
+        print "**"*10
+        
+        
         self.attributes =pd.read_csv(Path_att, index_col=0)
 
     def addatt(self, df = None, path_df=None):
@@ -722,7 +631,6 @@ class att_sta(object):
         except KeyError:
             pass
 #             print ("station %s does not have attribut in the metadata table selected"% (staname))
-
     def showatt(self):
         print(self.attributes)
 
@@ -749,11 +657,11 @@ class att_sta(object):
 #         print self.attributes['st68']
         
         for staname in stanames:
-            try:
-                staatt.append(self.attributes.loc[staname,att])
-            except KeyError:
-                print 'The parameter ' + att + ' do not exist for ' + staname
-                raise
+#             try:
+            staatt.append(self.attributes.loc[staname,att])
+#             except KeyError:
+#                 print 'The parameter ' + att + ' do not exist for ' + staname
+#                 raise
 
         # drop nan attribute
         return staatt
@@ -979,7 +887,7 @@ class LCB_station(man, Plots):
         """
         self.para={
         }
-        
+        print InPath
         self.Data = self.__read(InPath, net=net, clean=clean)
         
 
@@ -1126,8 +1034,7 @@ class LCB_station(man, Plots):
     def showvar(self):
         for i in self.Data.columns:
             print i
-        for i in self.module:
-            print i
+
 
     def showpara(self):
         print self.para
@@ -1379,15 +1286,18 @@ class LCB_net(LCB_station):
         
         """
         print('Adding ')
-        print files
+        
+        if files ==[]:
+            raise "The list of files is empty"
+
         for file in files:
-            print file
-#             try:
-            sta=LCB_station(file, net=net, clean=clean)
-            self.add(sta)
-#             except AttributeError:
-#                 print file
-#                 print "Could not add station to the network"
+
+            try:
+                sta=LCB_station(file, net=net, clean=clean)
+                self.add(sta)
+            except AttributeError:
+                print file
+                print "Could not add station to the network"
         print "#"*80
         print "Network created wit sucess!"
         print "#"*80
@@ -1461,10 +1371,7 @@ class LCB_net(LCB_station):
  
         
         for staname in stanames:
-            print staname
-            
-            
-            
+
             station = self.getsta(staname)[0]
             filename = station.getpara('filename')
             
